@@ -30,76 +30,76 @@ public sealed class GetCtypesLibCommand : PSCmdlet
     }
 }
 
-[Cmdlet(VerbsCommon.New, "CtypesStruct")]
-[OutputType(typeof(Type))]
-public sealed class NewCtypesStructCommand : PSCmdlet
-{
-    private ModuleBuilder _builder = default!;
+// [Cmdlet(VerbsCommon.New, "CtypesStruct")]
+// [OutputType(typeof(Type))]
+// public sealed class NewCtypesStructCommand : PSCmdlet
+// {
+//     private ModuleBuilder _builder = default!;
 
-    [Parameter(
-        Mandatory = true,
-        Position = 0
-    )]
-    public string Name { get; set; } = "";
+//     [Parameter(
+//         Mandatory = true,
+//         Position = 0
+//     )]
+//     public string Name { get; set; } = "";
 
-    [Parameter(
-        Mandatory = true,
-        Position = 0,
-        ValueFromPipeline = true,
-        ValueFromPipelineByPropertyName = true
-    )]
-    public PSObject[] InputObject { get; set; } = Array.Empty<PSObject>();
+//     [Parameter(
+//         Mandatory = true,
+//         Position = 0,
+//         ValueFromPipeline = true,
+//         ValueFromPipelineByPropertyName = true
+//     )]
+//     public PSObject[] InputObject { get; set; } = Array.Empty<PSObject>();
 
-    [Parameter()]
-    public SwitchParameter PassThru { get; set; }
+//     [Parameter()]
+//     public SwitchParameter PassThru { get; set; }
 
-    protected override void BeginProcessing()
-    {
-        string assemblyName = $"Ctypes.Struct.{Name}";
-        AssemblyBuilder assembly = AssemblyBuilder.DefineDynamicAssembly(
-            new(assemblyName),
-            AssemblyBuilderAccess.Run);
-        _builder = assembly.DefineDynamicModule(assemblyName);
-    }
+//     protected override void BeginProcessing()
+//     {
+//         string assemblyName = $"Ctypes.Struct.{Name}";
+//         AssemblyBuilder assembly = AssemblyBuilder.DefineDynamicAssembly(
+//             new(assemblyName),
+//             AssemblyBuilderAccess.Run);
+//         _builder = assembly.DefineDynamicModule(assemblyName);
+//     }
 
-    protected override void ProcessRecord()
-    {
-        foreach (PSObject obj in InputObject)
-        {
-            TypeBuilder tb = _builder.DefineType(
-                Name,
-                TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.AutoLayout,
-                typeof(ValueType));
+//     protected override void ProcessRecord()
+//     {
+//         foreach (PSObject obj in InputObject)
+//         {
+//             TypeBuilder tb = _builder.DefineType(
+//                 Name,
+//                 TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.AutoLayout,
+//                 typeof(ValueType));
 
-            List<FieldInfo> fields = new()
-            {
-            };
-            List<object> fieldValues = new()
-            {
-            };
+//             List<FieldInfo> fields = new()
+//             {
+//             };
+//             List<object> fieldValues = new()
+//             {
+//             };
 
-            CustomAttributeBuilder structLayout = new(
-                typeof(StructLayoutAttribute).GetConstructor(new[] { typeof(LayoutKind) })!,
-                new object[] { LayoutKind.Sequential },
-                fields.ToArray(),
-                fieldValues.ToArray()
-            );
-            tb.SetCustomAttribute(structLayout);
+//             CustomAttributeBuilder structLayout = new(
+//                 typeof(StructLayoutAttribute).GetConstructor(new[] { typeof(LayoutKind) })!,
+//                 new object[] { LayoutKind.Sequential },
+//                 fields.ToArray(),
+//                 fieldValues.ToArray()
+//             );
+//             tb.SetCustomAttribute(structLayout);
 
 
-            foreach (PSNoteProperty prop in obj.Properties.Match("*", PSMemberTypes.NoteProperty))
-            {
-                tb.DefineField(prop.Name, (Type)prop.Value, FieldAttributes.Public);
-            }
+//             foreach (PSNoteProperty prop in obj.Properties.Match("*", PSMemberTypes.NoteProperty))
+//             {
+//                 tb.DefineField(prop.Name, (Type)prop.Value, FieldAttributes.Public);
+//             }
 
-            Type? structType = tb.CreateType();
-            if (PassThru && structType != null)
-            {
-                WriteObject(structType);
-            }
-        }
-    }
-}
+//             Type? structType = tb.CreateType();
+//             if (PassThru && structType != null)
+//             {
+//                 WriteObject(structType);
+//             }
+//         }
+//     }
+// }
 
 public sealed class Library : DynamicObject
 {
