@@ -50,15 +50,26 @@ jobs:
     name: test
     needs:
     - build
-    runs-on: windows-latest
+    runs-on: '${{ matrix.os }}'
     strategy:
       fail-fast: false
       matrix:
         info:
-        - name: PS_7.2_x64
-          psversion: '7.2.7'
-        - name: PS_7.3_x64
-          psversion: '7.3.0'
+        - name: PS_5.1_x64
+          psversion: '5.1'
+          os: windows-latest
+        - name: PS_7.2_x64_Windows
+          psversion: '7.2.8'
+          os: windows-latest
+        - name: PS_7.2_x64_Linux
+          psversion: '7.2.8'
+          os: ubuntu-latest
+        - name: PS_7.3_x64_Windows
+          psversion: '7.3.1'
+          os: windows-latest
+        - name: PS_7.3_x64_Linux
+          psversion: '7.3.1'
+          os: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
@@ -70,6 +81,7 @@ jobs:
         path: output
 
     - name: Install PowerShell
+      if: matrix.psversion != '5.1'
       shell: pwsh
       run: |
         tools/AssertPwsh.ps1 -RequiredVersion '${{ matrix.info.psversion }}'
@@ -91,7 +103,15 @@ jobs:
 
         Expand-Archive -Path output/*.zip -DestinationPath $destPath -Force -ErrorAction Stop
 
-    - name: Run Tests
+    - name: Run Tests - Windows PowerShell
+      if: matrix.psversion == '5.1'
+      shell: pwsh
+      run: |
+        powershell.exe -NoProfile -File ./build.ps1 -Configuration $env:BUILD_CONFIGURATION -Task Test
+        exit $LASTEXITCODE
+
+    - name: Run Tests - PowerShell
+      if: matrix.psversion != '5.1'
       shell: pwsh
       run: |
         & "output/pwsh-${{ matrix.info.psversion }}/pwsh.exe" -NoProfile -File ./build.ps1 -Configuration $env:BUILD_CONFIGURATION -Task Test

@@ -37,7 +37,7 @@
     Copyright = '(c) 2022 Jordan Borean. All rights reserved.'
 
     # Description of the functionality provided by this module
-    Description = 'PowerShell implemtation of the Python''s ctypes library'
+    Description = 'PowerShell implemtation of the Python''s ctypes library for PInvoke methods'
 
     # Minimum version of the PowerShell engine required by this module
     PowerShellVersion = '5.1'
@@ -74,7 +74,7 @@
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
     CmdletsToExport = @(
-        'Get-CtypesLib'
+        'New-CtypesLib'
         'New-CtypesStruct'
     )
 
@@ -99,7 +99,7 @@
             )
 
             # A URL to the license for this module.
-            LicenseUri = 'https://github.com/jborean93/Ctypes/blob/main/LICENSE'
+            LicenseUri = 'https://github.com/jborean93/PowerShell-Ctypes/blob/main/LICENSE'
 
             # A URL to the main website for this project.
             ProjectUri = 'https://github.com/jborean93/PowerShell-Ctypes'

@@ -3,9 +3,9 @@ using System.Management.Automation;
 
 namespace Ctypes;
 
-[Cmdlet(VerbsCommon.Get, "CtypesLib")]
+[Cmdlet(VerbsCommon.New, "CtypesLib")]
 [OutputType(typeof(Library))]
-public sealed class GetCtypesLibCommand : PSCmdlet
+public sealed class NetCtypesLibCommand : PSCmdlet
 {
     [Parameter(
         Mandatory = true,
