@@ -99,16 +99,16 @@
             )
 
             # A URL to the license for this module.
-            LicenseUri = 'https://github.com/jborean93/PowerShell-Ctypes/blob/main/LICENSE'
+            LicenseUri = 'https://github.com/jborean93/PowerShell-ctypes/blob/main/LICENSE'
 
             # A URL to the main website for this project.
-            ProjectUri = 'https://github.com/jborean93/PowerShell-Ctypes'
+            ProjectUri = 'https://github.com/jborean93/PowerShell-ctypes'
 
             # A URL to an icon representing this module.
             # IconUri = ''
 
             # ReleaseNotes of this module
-            ReleaseNotes = 'See https://github.com/jborean93/PowerShell-Ctypes/blob/main/CHANGELOG.md'
+            ReleaseNotes = 'See https://github.com/jborean93/PowerShell-ctypes/blob/main/CHANGELOG.md'
 
             # Prerelease string of this module
             # Prerelease = ''

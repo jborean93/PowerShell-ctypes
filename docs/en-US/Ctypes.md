@@ -10,10 +10,13 @@ Locale: en-US
 ## Description
 PowerShell module for PInvoke integration. It is modelled after the Python ctypes API.
 
+See [about_CtypesInterface](./about_CtypesInterface.md) for more info on how to use the Ctypes library object for defining and calling PInvoke methods.
+
+See [about_CtypesStruct](./about_CtypesStruct.md) for more info on how to define structs using this module.
+
 ## Ctypes Cmdlets
 ### [New-CtypesLib](New-CtypesLib.md)
 Create an object that represents a local library to call PInvoke methods on.
 
 ### [New-CtypesStruct](New-CtypesStruct.md)
 Dynamically define a new struct type in PowerShell.
-

@@ -1,7 +1,7 @@
 ---
 external help file: Ctypes.dll-Help.xml
 Module Name: Ctypes
-online version: https://www.github.com/jborean93/PowerShell-Ctypes/blob/main/docs/en-US/New-CtypesStruct.md
+online version: https://www.github.com/jborean93/PowerShell-ctypes/blob/main/docs/en-US/New-CtypesStruct.md
 schema: 2.0.0
 ---
 

@@ -81,7 +81,7 @@ jobs:
         path: output
 
     - name: Install PowerShell
-      if: matrix.psversion != '5.1'
+      if: ${{ matrix.psversion != '5.1' }}
       shell: pwsh
       run: |
         tools/AssertPwsh.ps1 -RequiredVersion '${{ matrix.info.psversion }}'
@@ -104,17 +104,17 @@ jobs:
         Expand-Archive -Path output/*.zip -DestinationPath $destPath -Force -ErrorAction Stop
 
     - name: Run Tests - Windows PowerShell
-      if: matrix.psversion == '5.1'
+      if: ${{ matrix.psversion == '5.1' }}
       shell: pwsh
       run: |
         powershell.exe -NoProfile -File ./build.ps1 -Configuration $env:BUILD_CONFIGURATION -Task Test
         exit $LASTEXITCODE
 
     - name: Run Tests - PowerShell
-      if: matrix.psversion != '5.1'
+      if: ${{ matrix.psversion != '5.1' }}
       shell: pwsh
       run: |
-        & "output/pwsh-${{ matrix.info.psversion }}/pwsh.exe" -NoProfile -File ./build.ps1 -Configuration $env:BUILD_CONFIGURATION -Task Test
+        & "output/pwsh-${{ matrix.info.psversion }}/pwsh" -NoProfile -File ./build.ps1 -Configuration $env:BUILD_CONFIGURATION -Task Test
         exit $LASTEXITCODE
 
     - name: Upload Test Results
