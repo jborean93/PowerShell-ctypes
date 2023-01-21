@@ -266,18 +266,14 @@ internal sealed class MetaObject : DynamicObject
         {
             return new(name, typeof(IntPtr));
         }
-        else if (info is Type infoType)
-        {
-            return new(name, infoType);
-        }
-        else if (info is PSReference psRef && psRef.Value is Type refType)
-        {
-            return new(name, refType.MakeByRefType());
-        }
-        else
+
+        ParameterInfo param = new(name, info);
+        if (param.ParamType is not Type)
         {
             throw new ArgumentException($"PInvoke signature value must be $null or a [type] value");
         }
+
+        return param;
     }
 }
 
@@ -315,7 +311,14 @@ internal sealed class ParameterInfo
 
         if (value is PSReference refValue)
         {
-            ParamType = (refValue.Value?.GetType() ?? typeof(void)).MakeByRefType();
+            if (refValue.Value is Type valueType)
+            {
+                ParamType = valueType.MakeByRefType();
+            }
+            else
+            {
+                ParamType = (refValue.Value?.GetType() ?? typeof(void)).MakeByRefType();
+            }
         }
         else if (value is Type paramType)
         {

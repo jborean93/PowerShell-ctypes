@@ -50,7 +50,7 @@ jobs:
     name: test
     needs:
     - build
-    runs-on: '${{ matrix.os }}'
+    runs-on: ${{ matrix.info.os }}
     strategy:
       fail-fast: false
       matrix:
