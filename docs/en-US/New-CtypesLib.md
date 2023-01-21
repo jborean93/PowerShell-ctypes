@@ -27,7 +27,7 @@ See [about_CtypesInterface](./about_CtypesInterface.md) for more informatoin.
 ### Example 1 - Create object to call Kernel32 OpenProcess
 ```powershell
 PS C:\> $k32 = New-CtypesLib kernel32.dll
-PS C:\> $k32.Returning([IntPtr]).SetLastError().OpenProcess(0x400, $false, $processId)
+PS C:\> $k32.Returns([IntPtr]).SetLastError().OpenProcess(0x400, $false, $processId)
 ```
 
 Creates an object that exposes the functions in `kernel32.dll`.

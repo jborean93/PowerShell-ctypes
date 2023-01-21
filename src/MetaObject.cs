@@ -106,10 +106,12 @@ internal sealed class MetaObject : DynamicObject
 
     internal void DefinePInvokeMember(string name, ParameterInfo? returnType, ParameterInfo[] parameters)
     {
+
         MethodInfo meth = CreatePInvokeExtern(
             _library._builder,
             _library.DllName,
             name,
+            _library._entryPoint,
             returnType ?? new ParameterInfo(null, _library._returnType ?? typeof(int)),
             parameters,
             _library._setLastError,
@@ -117,6 +119,7 @@ internal sealed class MetaObject : DynamicObject
             _library._charSet);
         _library._callingConvention = null;
         _library._charSet = null;
+        _library._entryPoint = null;
         _library._returnType = null;
         _library._setLastError = null;
 
@@ -132,6 +135,7 @@ internal sealed class MetaObject : DynamicObject
         ModuleBuilder builder,
         string dllName,
         string name,
+        string? entryPoint,
         ParameterInfo returnType,
         ParameterInfo[] parameterTypes,
         bool? setLastError,
@@ -148,7 +152,7 @@ internal sealed class MetaObject : DynamicObject
         };
         List<object> fieldValues = new()
         {
-            name
+            entryPoint ?? name
         };
 
         if (callingConvention != null)
@@ -179,7 +183,7 @@ internal sealed class MetaObject : DynamicObject
             $"Extern{name}",
             MethodAttributes.Private | MethodAttributes.Static,
             returnType.ParamType,
-            parameterTypes.Select(p => p.ParamType).ToArray());
+            parameterTypes.Select(p => p.ParamType == typeof(IntPtr?) ? typeof(IntPtr) : p.ParamType).ToArray());
         pinvoke.SetCustomAttribute(dllImport);
 
         if (returnType.MarshalAs != null)
@@ -202,6 +206,9 @@ internal sealed class MetaObject : DynamicObject
 
         ILGenerator il = wrapper.GetILGenerator();
 
+        LocalBuilder? nullPtr = null;
+        LocalBuilder? nullablePtr = null;
+
         wrapper.DefineParameter(1, ParameterAttributes.None, "lib");
         for (int i = 1; i <= parameterTypes.Length; i++)
         {
@@ -221,6 +228,43 @@ internal sealed class MetaObject : DynamicObject
             pb = wrapper.DefineParameter(i + 1, ParameterAttributes.None, info.Name ?? $"arg{i}");
 
             il.Emit(OpCodes.Ldarg_S, i);
+
+            if (info.ParamType == typeof(IntPtr?))
+            {
+                if (nullPtr == null)
+                {
+                    nullPtr = il.DeclareLocal(typeof(IntPtr));
+                    il.Emit(OpCodes.Ldc_I4_0);
+                    il.Emit(OpCodes.Conv_I);
+                    il.Emit(OpCodes.Stloc_S, nullPtr);
+                }
+
+                if (nullablePtr == null)
+                {
+                    nullablePtr = il.DeclareLocal(typeof(Nullable<IntPtr>));
+                }
+
+                // The following is converting a null value to IntPtr.Zero;
+                // argument ?? IntPtr.Zero;
+
+                Label hasValueLabel = il.DefineLabel();
+                Label endNullable = il.DefineLabel();
+
+                il.Emit(OpCodes.Stloc, nullablePtr);
+                il.Emit(OpCodes.Ldloca_S, nullablePtr);
+                il.Emit(OpCodes.Call, ReflectionInfo.NullablePtrHasValueMethod);
+                il.Emit(OpCodes.Brtrue_S, hasValueLabel);
+
+                il.Emit(OpCodes.Ldloc, nullPtr);
+                il.Emit(OpCodes.Br_S, endNullable);
+
+                il.MarkLabel(hasValueLabel);
+
+                il.Emit(OpCodes.Ldloca_S, nullablePtr);
+                il.Emit(OpCodes.Call, ReflectionInfo.NullablePtrGetValueMethod);
+
+                il.MarkLabel(endNullable);
+            }
         }
         il.Emit(OpCodes.Call, pinvoke);
 
@@ -262,11 +306,6 @@ internal sealed class MetaObject : DynamicObject
 
     private static ParameterInfo ParseParamInfo(string? name, object? info)
     {
-        if (info == null)
-        {
-            return new(name, typeof(IntPtr));
-        }
-
         ParameterInfo param = new(name, info);
         if (param.ParamType is not Type)
         {
@@ -317,7 +356,7 @@ internal sealed class ParameterInfo
             }
             else
             {
-                ParamType = (refValue.Value?.GetType() ?? typeof(void)).MakeByRefType();
+                ParamType = (refValue.Value?.GetType() ?? typeof(IntPtr)).MakeByRefType();
             }
         }
         else if (value is Type paramType)
@@ -326,7 +365,12 @@ internal sealed class ParameterInfo
         }
         else
         {
-            ParamType = value?.GetType() ?? typeof(void);
+            ParamType = value?.GetType() ?? typeof(IntPtr);
+        }
+
+        if (ParamType == typeof(IntPtr))
+        {
+            ParamType = typeof(Nullable<IntPtr>);
         }
     }
 }

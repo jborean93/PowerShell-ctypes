@@ -17,6 +17,7 @@ public sealed class Library : IDynamicMetaObjectProvider
 
     internal CallingConvention? _callingConvention = null;
     internal CharSet? _charSet = null;
+    internal string? _entryPoint = null;
     internal Type? _returnType = null;
     internal bool? _setLastError = null;
 
@@ -56,7 +57,13 @@ public sealed class Library : IDynamicMetaObjectProvider
         return this;
     }
 
-    public Library Returning(Type? type)
+    public Library EntryPoint(string value)
+    {
+        _entryPoint = value;
+        return this;
+    }
+
+    public Library Returns(Type? type)
     {
         _returnType = type;
         return this;

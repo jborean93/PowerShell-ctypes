@@ -29,7 +29,7 @@ $kernel32 = New-CtypesLib kernel32.dll
 $kernel32.OpenProcess[IntPtr](0x400, $false, 1234)
 ```
 
-_Note: The return type was defined using the new generics syntax added in PowerShell 7.3. Older PowerShell versions should use the `.Returning([Type])` method instead.
+_Note: The return type was defined using the new generics syntax added in PowerShell 7.3. Older PowerShell versions should use the `.Returns([Type])` method instead.
 
 Once called, the signature for this function is stored on the `$kernel32` object and can be viewed with `Get-Member`.
 Any other functions called will also appear here.
@@ -38,7 +38,7 @@ To predefine the function before it is called, simply assign an array or ordered
 For example using an array looks like
 
 ```powershell
-$kernel32.Returning([IntPtr]).OpenProcess = @(
+$kernel32.Returns([IntPtr]).OpenProcess = @(
     [int],
     [bool],
     [int]
@@ -48,7 +48,7 @@ $kernel32.Returning([IntPtr]).OpenProcess = @(
 An ordered dictionary can also be used to give a label to the arguments:
 
 ```powershell
-$kernel32.Returning([IntPtr]).OpenProcess = [Ordered]@{
+$kernel32.Returns([IntPtr]).OpenProcess = [Ordered]@{
     DesiredAccess = [int]
     InheritHandle = [bool]
     ProcessId = [int]
@@ -65,6 +65,28 @@ $kernel32 | Get-Member -Name OpenProcess
 Name        MemberType Definition
 ----        ---------- ----------
 OpenProcess CodeMethod static System.IntPtr OpenProcess(psobject lib, int DesiredAccess, bool InheritHandle, int ProcessId)
+```
+
+It is also possible to use `$null` as a representation for `[IntPtr]::Zero`.
+If `$null` was used as a type value when defining a signature, or used as an argument for a method without a predefined signature, the argument type is `IntPtr` and the value becomes `IntPtr.Zero`.
+This makes it possible to use `$null` as a shorthand for `[IntPtr]::Zero`.
+Take [CloseHandle](https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle) as an example.
+
+```c
+BOOL CloseHandle(
+  [in] HANDLE hObject
+);
+```
+
+This can be used like
+
+```powershell
+$lib.Returns([bool]).CloseHandle($null)
+
+# Both of these are the same when pre-defining a function
+
+$lib.Returns([bool]).CloseHandle = @($null)
+$lib.Returns([bool]).CloseHandle = @([IntPtr])
 ```
 
 Predefining the argument types is useful because we can take advantage of PowerShell's casting behaviour to ensure the correct type is used rather than what is the value is when called.
@@ -131,7 +153,7 @@ Pre-defining this signature would look like
 
 ```powershell
 $advapi32 = New-CtypesLib Advapi32.dll
-$advapi32.Returning([bool]).OpenProcessToken = [Ordered]@{
+$advapi32.Returns([bool]).OpenProcessToken = [Ordered]@{
     ProcessHandle = [IntPtr]
     DesiredAccess = [System.Security.Principal.TokenAccessLevels]
     TokenHandle = [ref][IntPtr]
@@ -162,17 +184,15 @@ This attribute can be used to define the following:
 
 It is possible to also set the above using the Ctypes library object created by `New-CtypesLib` using the following methods on that object:
 
-|DllImport Value|Ctypes Lib Method|
-|-|-|
-|Dll/Lib Name|Part of `New-CtypesLib LibNamed.dll`|
-|CallingConvention|`$lib.CallingConvetention($cc)`|
-|CharSet|`$lib.CharSet($cs)`|
-|EntryPoint|`$lib.EntryPoint($args)` (the entrypoint calls the function)|
-|SetLastError|`$lib.SetLastError()`|
+|DllImport Value|Ctypes Lib Method|Default|
+|-|-|-|
+|Dll/Lib Name|Part of `New-CtypesLib LibNamed.dll`|Mandatory|
+|CallingConvention|`$lib.CallingConvetention($cc)`|Winapi (StdCall on Windows and Cdecl on Linux)|
+|CharSet|`$lib.CharSet($cs)`|Auto|
+|EntryPoint|`$lib.EntryPoint($e)`|Uses the method name|
+|SetLastError|`$lib.SetLastError()`|False|
 
-The entrypoint is the actual PInvoke call and the method name used defines the entrypoint.
-For example `$lib.MyNativeFunction()` will call the entry point `MyNativeFunction` with the arguments specified.
-All the other functions return the same library object so can be chained together.
+All the functions return the same library object so can be chained together.
 For example to set the char set and enable last error caching the following can be used:
 
 ```powershell
@@ -204,7 +224,7 @@ _Note: Just like any other method metadata value, this only applies when the met
 Using the `CreateFileW` example above, here is how to mark the first argument with `[MarshalAs(UnmanagedType.LPWStr)]`:
 
 ```powershell
-$lib.Returning([IntPtr]).SetLastError().CreateFileW = @(
+$lib.Returns([IntPtr]).SetLastError().CreateFileW = @(
     $lib.MarshalAs([string], "LPWStr"),
     [int],
     [System.IO.FileShare],
@@ -216,7 +236,7 @@ $lib.Returning([IntPtr]).SetLastError().CreateFileW = @(
 
 # Or with named arguments
 
-$lib.Returning([IntPtr]).SetLastError().CreateFileW = [Ordered]@{
+$lib.Returns([IntPtr]).SetLastError().CreateFileW = [Ordered]@{
     lpFileName = $lib.MarshalAs([string], "LPWStr")
     dwDesiredAccess = [int]
     dwShareMode = [System.IO.FileShare]
@@ -228,7 +248,7 @@ $lib.Returning([IntPtr]).SetLastError().CreateFileW = [Ordered]@{
 
 # Or without an explicit signature
 
-$lib.SetLastError().Returning([IntPtr]).CreateFileW(
+$lib.SetLastError().Returns([IntPtr]).CreateFileW(
     $lib.MarshalAs("C:\temp\test.txt", "LPWStr"),
     0,
     [System.IO.FileShare]::Read,
@@ -246,7 +266,7 @@ For example
 
 ```powershell
 $lib = New-CtypesLib Kernel32.dll
-$lib.Returning([IntPtr]).SetLastError().CreateFileW = [Ordered]@{
+$lib.Returns([IntPtr]).SetLastError().CreateFileW = [Ordered]@{
     lpFileName = $lib.MarshalAs([string], "LPWStr")
     dwDesiredAccess = [int]
     dwShareMode = [System.IO.FileShare]
@@ -283,5 +303,38 @@ _Note: The code is shown as static with the first argument being a `PSObject`. T
 
 # Redefining the Signature
 It is currently not possible to redefine the signature on an existing method.
-To use a new signature, create a new Ctypes library object with `New-CtypesLib` and define the signature there.
+To use a new signature, either create a new Ctypes library object with `New-CtypesLib` and define the signature there or use the `EntryPoint()` method to define a new method for the same PInvoke function.
+For example:
+
+```powershell
+$lib.Returns([IntPtr]).SetLastError().CreateFileW = [Ordered]@{
+    lpFileName = $lib.MarshalAs([string], "LPWStr")
+    dwDesiredAccess = [int]
+    dwShareMode = [System.IO.FileShare]
+    lpSecurityAttributes = [IntPtr]
+    dwCreationDisposition = [System.IO.FileMode]
+    dwFlagsAndAttributes = [int]
+    hTemplateFile = [IntPtr]
+}
+
+$lib.SetLastError().CharSet('Unicode').EntryPoint('CreateFileW').CreateFileWithSA = [Ordered]@{
+    lpFileName = $lib.MarshalAs([string], "LPWStr")
+    dwDesiredAccess = [int]
+    dwShareMode = [System.IO.FileShare]
+    lpSecurityAttributes = [SECURITY_ATTRIBUTES]
+    dwCreationDisposition = [System.IO.FileMode]
+    dwFlagsAndAttributes = [int]
+    hTemplateFile = [IntPtr]
+}
+
+# Calls the IntPtr overload
+$lib.CreateFileW(...)
+
+# Calls the SECURITY_ATTRIBUTES overload
+$lib.CreateFileWithSA(...)
+```
+
+This creates to methods that ultimately point to `CreateFileW`; one called `CreateFileW` and the other `CreateFileWithSA`.
+It is possible to now call both methods using the overloads they specified.
+
 There can be multiple Ctypes library objects for the same DLL without them interacting with each other.

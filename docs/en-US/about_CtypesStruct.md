@@ -215,7 +215,7 @@ ctypes_struct PROCESS_INFORMATION -LayoutKind Sequential {
 $kernel32 = New-CtypesLib Kernel32.dll
 
 # This step is optional and am example of how to define a pointer to struct
-$kernel32.Returning([bool]).SetLastError().CharSet('Unicode').CreateProcessW = [Ordered]@{
+$kernel32.Returns([bool]).SetLastError().CharSet('Unicode').CreateProcessW = [Ordered]@{
     # LPCWSTR is a constant, can use the normal string type
     lpApplicationName = [string]
 
@@ -259,7 +259,7 @@ $pi = [PROCESS_INFORMATION]::new()
 $commandLine = [System.Text.StringBuilder]::new("powershell.exe -NoExit -Command 'hi'")
 
 # The Returning, SetLastError, and CharSet is not needed if explicitly defined above
-$res = $kernel32.Returning([bool]).SetLastError().CharSet('Unicode').CreateProcessW(
+$res = $kernel32.Returns([bool]).SetLastError().CharSet('Unicode').CreateProcessW(
     "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
     $commandLine,
     [ref]$procSa,

@@ -53,6 +53,12 @@ internal static class ReflectionInfo
     public static FieldInfo StructLayoutPackField = typeof(StructLayoutAttribute)
         .GetField("Pack")!;
 
+    public static MethodInfo NullablePtrHasValueMethod = typeof(Nullable<IntPtr>)
+        .GetMethod("get_HasValue", Array.Empty<Type>())!;
+
+    public static MethodInfo NullablePtrGetValueMethod = typeof(Nullable<IntPtr>)
+        .GetMethod("GetValueOrDefault", Array.Empty<Type>())!;
+
     public static MethodInfo MarshalGetLastWin32ErrorMethod = typeof(Marshal)
         .GetMethod("GetLastWin32Error", Array.Empty<Type>())!;
 
