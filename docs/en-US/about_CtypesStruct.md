@@ -233,7 +233,8 @@ $kernel32.Returning([bool]).SetLastError().CharSet('Unicode').CreateProcessW = [
     bInheritHandles = [bool]
 
     # Can also be [int] but defining an enum gives completion support as well
-    # as specify the value as a string
+    # as specify the value as a string. WinPS (5.1) must use [int] here instead
+    # as it cannot reference an enum type defined in PowerShell.
     dwCreationFlags = [ProcessCreationFlags]
 
     # LPVOID is the same as IntPtr
@@ -277,3 +278,5 @@ if (-not $res) {
 $kernel32.CloseHandle($pi.Process)
 $kernel32.CloseHandle($pi.Thread)
 ```
+
+_Note: Windows PowerShell 5.1 cannot reference an enum defined in PowerShell using the `enum` syntax. Using the `[int]` type instead in the method definition for those versions and make sure to pass in an integer value when calling the function._
