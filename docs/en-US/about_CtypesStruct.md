@@ -30,6 +30,7 @@ ctypes_struct SECURITY_ATTRIBUTES {
 }
 ```
 
+By default if no type is specified, the type used is `[IntPtr]`.
 Once defined the struct can be created just like any other type in PowerShell:
 
 ```powershell

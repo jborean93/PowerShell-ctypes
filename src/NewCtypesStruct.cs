@@ -154,7 +154,7 @@ public sealed class CtypesStructCommand : PSCmdlet
                 "ctypes_struct must only contain [type]$FieldName lines for each struct field");
         }
 
-        Type fieldType = typeof(object);
+        Type fieldType = typeof(IntPtr);
         MarshalAsAttribute? marshalAs = null;
         FieldOffsetAttribute? fieldOffset = null;
 
@@ -168,7 +168,7 @@ public sealed class CtypesStructCommand : PSCmdlet
                     fieldType = convExp.StaticType;
                 }
                 else if (
-                    attrExp.Attribute.TypeName.FullName == "MarshalAs" &&
+                    attrExp.Attribute.TypeName.FullName.ToLowerInvariant() == "marshalas" &&
                     attrExp.Attribute is AttributeAst marshalAsAttr
                 )
                 {
@@ -176,7 +176,7 @@ public sealed class CtypesStructCommand : PSCmdlet
                     marshalAs = ParseMarshalAs(marshalAsAttr);
                 }
                 else if (
-                    attrExp.Attribute.TypeName.FullName == "FieldOffset" &&
+                    attrExp.Attribute.TypeName.FullName.ToLowerInvariant() == "fieldoffset" &&
                     attrExp.Attribute is AttributeAst fieldOffsetAttr
                 )
                 {
@@ -246,19 +246,19 @@ public sealed class CtypesStructCommand : PSCmdlet
 
         foreach (NamedAttributeArgumentAst arg in attr.NamedArguments)
         {
-            switch (arg.ArgumentName)
+            switch (arg.ArgumentName.ToLowerInvariant())
             {
-                case "ArraySubType":
+                case "arraysubtype":
                     marshalAs.ArraySubType = GetAttributeEnumValue<UnmanagedType>(arg.Argument, "ArraySubType");
                     break;
 
-                case "SizeConst":
+                case "sizeconst":
                     marshalAs.SizeConst = GetAttributeIntValue(arg.Argument, "SizeConst");
                     break;
 
                 default:
                     throw new ArgumentException(
-                        $"Unsupported MarshalAs named argument '{arg.ArgumentName}', expecting SizeConst");
+                        $"Unsupported MarshalAs named argument '{arg.ArgumentName}', expecting ArraySubType or SizeConst");
             }
         }
 
