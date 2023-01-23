@@ -12,7 +12,91 @@ See [ctypes index](docs/en-US/Ctypes.md) for more details.
 
 ## Examples
 
-Testing
+_Note: All these examples use the generics to specify the return method which is pwsh 7.3+ only. Use `.Returns([type])` instead for older versions._
+
+### Calling CreateFileW directly
+
+```powershell
+$k32 = New-CtypesLib Kernel32.dll
+$fh = $k32.CharSet('Unicode').SetLastError().CreateFileW[Microsoft.Win32.SafeHandles.SafeFileHandle](
+    "\\?\C:\temp\test.txt",
+    [System.Security.AccessControl.FileSystemRights]'FullControl',
+    [System.IO.FileShare]::Read,
+    $null,
+    [System.IO.FileMode]::Create,
+    0,  # FlagsAndAttributes
+    $null)
+if ($fh.IsInvalid -eq [IntPtr](-1)) {
+    throw [System.ComponentModel.Win32Exception]$k32.LastError
+}
+
+$fs = [System.IO.FileStream]::new($fh, [System.IO.FileAccess]::ReadWrite)
+...
+```
+
+Calls [CreateFileW](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew) directly with the long path prefix and creates a filestream on the returned object.
+It also wraps the raw handle in a `SafeFileHandle` making it easy to dispose the object when not needed anymore.
+
+### Using a struct and references
+
+```powershell
+[int]$processId = Read-Host -Prompt 'What pid do you wish to inspect'
+$k32 = New-CtypesLib Kernel32.dll
+$advapi = New-CtypesLib Advapi32.dll
+
+ctypes_struct LUID {
+    [int]$LowPart
+    [int]$HighPart
+}
+
+ctypes_struct LUID_AND_ATTRIBUTES {
+    [LUID]$Luid
+    [int]$Attributes
+}
+
+ctypes_struct TOKEN_PRIVILEGES {
+    [int]$PrivilegeCount
+    [MarshalAs('LPArray', SizeConst=1)][LUID_AND_ATTRIBUTES[]]$Privileges
+}
+
+$proc = $k32.SetLastError().OpenProcess[IntPtr](
+    0x400,  # PROCESS_QUERY_INFORMATION
+    $false,
+    $processId)
+if ($proc -eq [IntPtr]::Zero) {
+    throw [System.ComponentModel.Win32Exception]$k32.LastError
+}
+
+$handle = [IntPtr]::Zero
+try {
+    $res = $advapi.SetLastError().OpenProcessHandle[bool](
+        $proc,
+        [System.Security.Principal.TokenAccessLevels]::Query,
+        [ref]$handle)
+    if (-not $res) {
+        throw [System.ComponentModel.Win32Exception]$advapi.LastError
+    }
+
+}
+finally {
+    if ($handle -ne [IntPtr]::Zero) {
+        $k32.CloseHandle[void]($handle)
+    }
+    $k32.CloseHandle[void]($proc)
+}
+```
+
+This is a more complex example that uses reference types and structs to get the token privileges of another process handle.
+
+### Gettings libc version
+
+```powershell
+$libc = New-CtypesLib libc
+[System.Runtime.InteropServices.Marshal]::PtrToStringUTF8(
+    $libc.gnu_get_libc_version[IntPtr]())
+```
+
+_Note: This can't return a string directly as dotnet will try and free the memory which cannot be done._
 
 ## Requirements
 
