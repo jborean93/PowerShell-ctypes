@@ -700,7 +700,7 @@ Describe "New-CtypesLib" {
             $params[1].ParameterType | Should -Be ([MY_STRUCT].MakeByRefType())
         }
 
-        It "Defines function with custom enum" {
+        It "Defines function with custom enum" -Skip:($PSVersionTable.PSVersion -lt '6.0') {
             enum MY_ENUM {
                 Enum1 = 1
                 Enum2 = 2
@@ -748,7 +748,7 @@ Describe "New-CtypesLib" {
             $params[1].ParameterType | Should -Be ([MY_ENUM].MakeByRefType())
         }
 
-        It "Defined function with custom struct and enum" {
+        It "Defined function with custom struct and enum" -Skip:($PSVersionTable.PSVersion -lt '6.0') {
             enum MY_ENUM {
                 Enum1 = 1
                 Enum2 = 2
@@ -802,7 +802,168 @@ Describe "New-CtypesLib" {
     }
 
     Context "Windows APIs" -Skip:(-not $IsWindows) {
+        It "Uses API that returns a pointer" {
+            $lib = New-CtypesLib Kernel32.dll
+            $res = $lib.Returns([IntPtr]).GetCurrentProcess()
+            $res | Should -BeOfType ([IntPtr])
+            $res | Should -Be ([IntPtr]-1)
 
+            $lib | Get-Member -name GetCurrentProcess | Should -Not -BeNullOrEmpty
+        }
+
+        It "Uses generics to specify return type" -Skip:($PSVersionTable.PSVersion -lt '7.3') {
+            # Needs to be a string so that the test file can be parsed by older pwsh version
+            $code = @'
+            $lib = New-CtypesLib Kernel32.dll
+            $res = $lib.GetCurrentProcess[IntPtr]()
+            $res | Should -BeOfType ([IntPtr])
+            $res | Should -Be ([IntPtr]-1)
+
+            $lib | Get-Member -Name GetCurrentProcess | Should -Not -BeNullOrEmpty
+'@
+
+            & ([ScriptBlock]::Create($code))
+        }
+
+        It "Nulls out output" {
+            $lib = New-CtypesLib Kernel32.dll
+            $res = $lib.Returns([void]).GetCurrentProcess()
+            $res | Should -BeNullOrEmpty
+        }
+
+        It "Nulls out output with generics" -Skip:($PSVersionTable.PSVersion -lt '7.3') {
+            # Needs to be a string so that the test file can be parsed by older pwsh version
+            $code = @'
+            $lib = New-CtypesLib Kernel32.dll
+            $res = $lib.GetCurrentProcess[void]()
+            $res | Should -BeNullOrEmpty
+'@
+
+            & ([ScriptBlock]::Create($code))
+        }
+
+        It "Gets last error code on failure" {
+            $lib = New-CtypesLib Kernel32.dll
+
+            $procHandle = $lib.Returns([IntPtr]).SetLastError().OpenProcess(
+                0x400,  # PROCESS_QUERY_INFORMATION
+                $false,
+                1)
+            $procHandle | Should -Be ([IntPtr]::Zero)
+            $lib.LastError | Should -Be 0x00000057  # ERROR_INVALID_PARAMETER
+
+            if ($PSVersionTable.PSVersion -ge '6.0') {
+                # This test won't work on dotnet framework as it internally
+                # only updates the GetLastWin32Error() value on a failure.
+                $procHandle = $lib.OpenProcess(
+                    0x400,
+                    $false,
+                    $pid)
+                $procHandle | Should -Not -Be ([IntPtr]::Zero)
+                try {
+                    $lib.LastError | Should -Be 0
+                }
+                finally {
+                    $lib.Returns([void]).CloseHandle($procHandle)
+                }
+            }
+        }
+
+        It "Uses complex argument" {
+            ctypes_struct SECURITY_ATTRIBUTES {
+                [int]$Length
+                [IntPtr]$SecurityDescriptor
+                [bool]$InheritHandle
+            }
+
+            ctypes_struct STARTUPINFOW -CharSet Unicode {
+                [int]$CB
+                [MarshalAs('LPWStr')][string]$Reserved
+                [MarshalAs('LPWStr')][string]$Desktop
+                [MarshalAs('LPWStr')][string]$Title
+                [int]$X
+                [int]$Y
+                [int]$XSize
+                [int]$YSize
+                [int]$XCountChars
+                [int]$YCountChars
+                [int]$FillAttribute
+                [int]$Flags
+                [short]$ShowWindow
+                [short]$Reserved2
+                [IntPtr]$Reserved3
+                [IntPtr]$StdInput
+                [IntPtr]$StdOutput
+                [IntPtr]$StdError
+            }
+
+            ctypes_struct PROCESS_INFORMATION -LayoutKind Sequential {
+                [IntPtr]$Process
+                [IntPtr]$Thread
+                [int]$Pid
+                [int]$Tid
+            }
+
+            # There are more options but limited here for the sake of brevity
+            [Flags()] enum ProcessCreationFlags {
+                NONE = 0x00000000
+                CREATE_NEW_CONSOLE = 0x00000010
+                CREATE_UNICODE_ENVIRONMENT = 0x00000400
+            }
+
+            $procSa = [SECURITY_ATTRIBUTES]@{
+                Length = [System.Runtime.InteropServices.Marshal]::SizeOf([Type][SECURITY_ATTRIBUTES])
+                InheritHandle = $true
+            }
+            $si = [STARTUPINFOW]@{
+                CB = [System.Runtime.InteropServices.Marshal]::SizeOf([Type][STARTUPINFOW])
+                Flags = 0x00000001  # STARTF_USESHOWWINDOW
+                ShowWindow = 0  # SW_HIDE
+            }
+            $pi = [PROCESS_INFORMATION]::new()
+
+            $kernel32 = New-CtypesLib Kernel32.dll
+
+            $commandLine = [System.Text.StringBuilder]::new("powershell.exe -Command 'hi'")
+            $res = $kernel32.Returns([bool]).SetLastError().CharSet('Unicode').CreateProcessW(
+                $kernel32.MarshalAs("C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe", 'LPWStr'),
+                $commandLine,
+                [ref]$procSa,
+                $null,
+                $false,
+                # Need to cast for WinPS
+                [int][ProcessCreationFlags]'CREATE_NEW_CONSOLE, CREATE_UNICODE_ENVIRONMENT',
+                [IntPtr]::Zero,
+                "C:\Windows",
+                [ref]$si,
+                [ref]$pi
+            )
+            if (-not $res) {
+                throw [System.ComponentModel.Win32Exception]$kernel32.LastError
+            }
+
+            try {
+                $pi.Pid | Should -Not -Be 0
+                $pi.Thread | Should -Not -Be 0
+
+                $handleFlags = 0
+                $res = $kernel32.Returns([bool]).GetHandleInformation($pi.Process, [ref]$handleFlags)
+                if (-not $res) {
+                    throw [System.ComponentModel.Win32Exception]$kernel32.LastError
+                }
+                $handleFlags | Should -Be 1  # HANDLE_FLAG_INHERIT
+
+                $res = $kernel32.Returns([bool]).GetHandleInformation($pi.Thread, [ref]$handleFlags)
+                if (-not $res) {
+                    throw [System.ComponentModel.Win32Exception]$kernel32.LastError
+                }
+                $handleFlags | Should -Be 0  # Not inherited
+            }
+            finally {
+                $kernel32.Returns([void]).CloseHandle($pi.Process)
+                $kernel32.CloseHandle($pi.Thread)
+            }
+        }
     }
 
     Context "Linux APIs" -Skip:(-not $IsLinux) {
@@ -814,6 +975,8 @@ Describe "New-CtypesLib" {
                 $res | Should -BeOfType ([IntPtr])
                 $cwd = [System.Runtime.InteropServices.Marshal]::PtrToStringUTF8($res)
                 $cwd | Should -Be ([System.Environment]::CurrentDirectory)
+
+                $lib | Get-Member -Name get_current_dir_name | Should -Not -BeNullOrEmpty
             }
             finally {
                 $null = $lib.free($res)
@@ -830,6 +993,8 @@ Describe "New-CtypesLib" {
                 $res | Should -BeOfType ([IntPtr])
                 $cwd = [System.Runtime.InteropServices.Marshal]::PtrToStringUTF8($res)
                 $cwd | Should -Be ([System.Environment]::CurrentDirectory)
+
+                $lib | Get-Member -Name get_current_dir_name | Should -Not -BeNullOrEmpty
             }
             finally {
                 $lib.free[void]($res)

@@ -337,7 +337,7 @@ Describe "New-CtypesStruct" {
         [Complex].DeclaredFields[8].CustomAttributes[1].ConstructorArguments[0].Value | Should -Be 10
     }
 
-    It "Defines struct with pwsh Enum type" {
+    It "Defines struct with pwsh Enum type" -Skip:($PSVersionTable.PSVersion -lt '6.0') {
         & {
             enum PwshEnum {
                 Enum1 = 1
@@ -365,7 +365,7 @@ Describe "New-CtypesStruct" {
         [Enum]::GetValues($copiedEnumType) | ForEach-Object ToString | Should -Be @('Enum1', 'Enum2')
     }
 
-    It "Defines struct with pwsh Enum flags type" {
+    It "Defines struct with pwsh Enum flags type" -Skip:($PSVersionTable.PSVersion -lt '6.0') {
         & {
             [Flags()] enum PwshEnumFlags {
                 Enum1 = 1
