@@ -61,7 +61,7 @@ internal sealed class LibraryMetaObject : DynamicMetaObject
 
             _meta.DefinePInvokeMember(
                 binder.Name,
-                returnType != null ? new ParameterInfo(null, returnType) : null,
+                returnType != null ? new ParameterInfo(null, returnType, forReturn: true) : null,
                 paramInformation);
         }
 
@@ -112,7 +112,7 @@ internal sealed class MetaObject : DynamicObject
             _library.DllName,
             name,
             _library._entryPoint,
-            returnType ?? new ParameterInfo(null, _library._returnType ?? typeof(int)),
+            returnType ?? new ParameterInfo(null, _library._returnType ?? typeof(int), forReturn: true),
             parameters,
             _library._setLastError,
             _library._callingConvention,
@@ -323,7 +323,7 @@ internal sealed class ParameterInfo
 
     public CustomAttributeBuilder? MarshalAs { get; }
 
-    public ParameterInfo(string? name, object? value)
+    public ParameterInfo(string? name, object? value, bool forReturn = false)
     {
         Name = name;
         PSObject? valuePSObj = null;
@@ -368,7 +368,7 @@ internal sealed class ParameterInfo
             ParamType = value?.GetType() ?? typeof(IntPtr);
         }
 
-        if (ParamType == typeof(IntPtr))
+        if (!forReturn && ParamType == typeof(IntPtr))
         {
             ParamType = typeof(Nullable<IntPtr>);
         }

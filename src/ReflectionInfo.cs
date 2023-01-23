@@ -26,6 +26,9 @@ internal static class ReflectionInfo
     public static ConstructorInfo FieldOffsetCtor = typeof(FieldOffsetAttribute)
         .GetConstructor(new[] { typeof(int) })!;
 
+    public static ConstructorInfo FlagsCtor = typeof(FlagsAttribute)
+        .GetConstructor(Array.Empty<Type>())!;
+
     public static ConstructorInfo StructLayoutCtor = typeof(StructLayoutAttribute)
         .GetConstructor(new[] { typeof(LayoutKind) })!;
 

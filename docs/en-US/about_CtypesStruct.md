@@ -280,4 +280,9 @@ $kernel32.CloseHandle($pi.Process)
 $kernel32.CloseHandle($pi.Thread)
 ```
 
-_Note: Windows PowerShell 5.1 cannot reference an enum defined in PowerShell using the `enum` syntax. Using the `[int]` type instead in the method definition for those versions and make sure to pass in an integer value when calling the function._
+Two major things to point out here
+
+* Windows PowerShell 5.1 cannot reference an enum defined in PowerShell using the `enum` syntax
+* PowerShell 6+ copies the PowerShell enum when declared into the struct assembly
+
+A consequence of the second point is that when you declare a field with an enum defined in PowerShell in a `ctypes_struct`, the enum will now persist globally rather than be collected when it goes out of scope.

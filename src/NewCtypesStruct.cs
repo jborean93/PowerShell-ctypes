@@ -122,11 +122,18 @@ public sealed class CtypesStructCommand : PSCmdlet
                 customAttrs.Add(CreateFieldOffsetAttribute(info.FieldOffset));
             }
 
-            FieldBuilder field = tb.DefineField(info.Name, info.FieldType, attr);
-            if (info.DefaultValue != null)
+            Type fieldType = info.FieldType;
+#if CORE
+            // Enums in pwsh are defined with RunAndCollect and cannot be used
+            // in an assembly that is also not collectible. Copy across the
+            // enum to the current assembly.
+            if (fieldType.IsSubclassOf(typeof(Enum)) && fieldType.IsCollectible)
             {
-                field.SetConstant(info.DefaultValue);
+                fieldType = CopyEnumToAssembly(fieldType, mb);
             }
+#endif
+
+            FieldBuilder field = tb.DefineField(info.Name, fieldType, attr);
             foreach (CustomAttributeBuilder a in customAttrs)
             {
                 field.SetCustomAttribute(a);
@@ -349,7 +356,7 @@ public sealed class CtypesStructCommand : PSCmdlet
         );
     }
 
-    public static CustomAttributeBuilder CreateMarshalAsAttribute(MarshalAsAttribute value)
+    private static CustomAttributeBuilder CreateMarshalAsAttribute(MarshalAsAttribute value)
     {
         List<FieldInfo> fields = new();
         List<object> values = new();
@@ -374,13 +381,38 @@ public sealed class CtypesStructCommand : PSCmdlet
         );
     }
 
-    public static CustomAttributeBuilder CreateFieldOffsetAttribute(FieldOffsetAttribute value)
+    private static CustomAttributeBuilder CreateFieldOffsetAttribute(FieldOffsetAttribute value)
     {
         return new(
             ReflectionInfo.FieldOffsetCtor,
             new object[] { value.Value }
         );
     }
+
+#if CORE
+    private static Type CopyEnumToAssembly(Type enumToCopy, ModuleBuilder mb)
+    {
+        Type underlyingType = Enum.GetUnderlyingType(enumToCopy);
+        EnumBuilder eb = mb.DefineEnum(enumToCopy.FullName!, ReflectionTA.Public,
+            underlyingType);
+
+        if (enumToCopy.GetCustomAttribute<FlagsAttribute>() != null)
+        {
+            CustomAttributeBuilder flagsAttr = new(
+                ReflectionInfo.FlagsCtor,
+                Array.Empty<object>());
+            eb.SetCustomAttribute(flagsAttr);
+        }
+
+        FieldInfo[] fields = enumToCopy.GetFields(BindingFlags.Static | BindingFlags.Public);
+        foreach (FieldInfo field in fields)
+        {
+            eb.DefineLiteral(field.Name, Convert.ChangeType(field.GetValue(null), underlyingType));
+        }
+
+        return eb.CreateType()!;
+    }
+#endif
 }
 
 internal class StructFieldInfo
@@ -389,7 +421,6 @@ internal class StructFieldInfo
     public Type FieldType { get; }
     public MarshalAsAttribute? MarshalAs { get; }
     public FieldOffsetAttribute? FieldOffset { get; }
-    public object? DefaultValue { get; set; }
 
     public StructFieldInfo(string name, Type fieldType, MarshalAsAttribute? marshalAs,
         FieldOffsetAttribute? fieldOffset)

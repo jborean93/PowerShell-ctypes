@@ -3,104 +3,104 @@
 Describe "New-CtypesStruct" {
     It "Fails with begin block" {
         { ctypes_struct Test {
-            begin {
-                [int]$Field
-            }
-        } } | Should -Throw 'ctypes_struct must not contain explicit begin, process, or end blocks'
+                begin {
+                    [int]$Field
+                }
+            } } | Should -Throw 'ctypes_struct must not contain explicit begin, process, or end blocks'
     }
 
     It "Fails with process block" {
         { ctypes_struct Test {
-            process {
-                [int]$Field
-            }
-        } } | Should -Throw 'ctypes_struct must not contain explicit begin, process, or end blocks'
+                process {
+                    [int]$Field
+                }
+            } } | Should -Throw 'ctypes_struct must not contain explicit begin, process, or end blocks'
     }
 
     It "Fails with begin block" {
         { ctypes_struct Test {
-            end {
-                [int]$Field
-            }
-        } } | Should -Throw 'ctypes_struct must not contain explicit begin, process, or end blocks'
+                end {
+                    [int]$Field
+                }
+            } } | Should -Throw 'ctypes_struct must not contain explicit begin, process, or end blocks'
     }
 
     It 'Fails with command field' {
         { ctypes_struct Test {
-            Get-PSDrive
-        }} | Should -Throw 'ctypes_struct must only contain `[type`]$FieldName lines for each struct field'
+                Get-PSDrive
+            } } | Should -Throw 'ctypes_struct must only contain `[type`]$FieldName lines for each struct field'
     }
 
     It 'Fails with pipelined expression field' {
         { ctypes_struct Test {
-            [int]$Field | Write-Output
-        }} | Should -Throw 'ctypes_struct must only contain `[type`]$FieldName lines for each struct field'
+                [int]$Field | Write-Output
+            } } | Should -Throw 'ctypes_struct must only contain `[type`]$FieldName lines for each struct field'
     }
 
     It 'Fails with variable assignment field' {
         { ctypes_struct Test {
-            $var = 'abc'
-        }} | Should -Throw 'ctypes_struct must only contain `[type`]$FieldName lines for each struct field'
+                $var = 'abc'
+            } } | Should -Throw 'ctypes_struct must only contain `[type`]$FieldName lines for each struct field'
     }
 
     It 'Fails with unknown attribute' {
         { ctypes_struct Test {
-            [MyAttribute()]$var
-        }} | Should -Throw 'Unknown attribute ''MyAttribute'', only MarshalAs and FieldOffset supported'
+                [MyAttribute()]$var
+            } } | Should -Throw 'Unknown attribute ''MyAttribute'', only MarshalAs and FieldOffset supported'
     }
 
     It 'Fails with array expression' {
         { ctypes_struct Test {
-            [int[]]@('abc')
-        }} | Should -Throw 'ctypes_struct line ''`[int`[`]`]@(''abc'')'' must be a variable expression `[type`]$FieldName'
+                [int[]]@('abc')
+            } } | Should -Throw 'ctypes_struct line ''`[int`[`]`]@(''abc'')'' must be a variable expression `[type`]$FieldName'
     }
 
     It 'Fails with invalid UnmanagedType enum string' {
         { ctypes_struct Test {
-            [MarshalAs('fake')][string]$Foo
-        }} | Should -Throw 'Failed to extract MarshalAs UnmanagedType value for `[MarshalAs(''fake'')`]'
+                [MarshalAs('fake')][string]$Foo
+            } } | Should -Throw 'Failed to extract MarshalAs UnmanagedType value for `[MarshalAs(''fake'')`]'
     }
 
     It 'Fails with invalid ArraySubType enum string' {
         { ctypes_struct Test {
-            [MarshalAs('ByValArray', ArraySubType='fake', SizeConst=1)][int[]]$Foo
-        }} | Should -Throw 'Failed to extract expected enum UnmanagedType value for ArraySubType'
+                [MarshalAs('ByValArray', ArraySubType = 'fake', SizeConst = 1)][int[]]$Foo
+            } } | Should -Throw 'Failed to extract expected enum UnmanagedType value for ArraySubType'
     }
 
     It 'Fails with invalid MarshalAs named attribute' {
         { ctypes_struct Test {
-            [MarshalAs('ByValArray', Unknown=0)][int[]]$Foo
-        }} | Should -Throw 'Unsupported MarshalAs named argument ''Unknown'', expecting ArraySubType or SizeConst'
+                [MarshalAs('ByValArray', Unknown = 0)][int[]]$Foo
+            } } | Should -Throw 'Unsupported MarshalAs named argument ''Unknown'', expecting ArraySubType or SizeConst'
     }
 
     It 'Fails with no MarshalAs attribute value' {
         { ctypes_struct Test {
-            [MarshalAs()][int[]]$Foo
-        }} | Should -Throw 'Expecting 1 argument for MarshalAs attribute but found 0'
+                [MarshalAs()][int[]]$Foo
+            } } | Should -Throw 'Expecting 1 argument for MarshalAs attribute but found 0'
     }
 
     It 'Fails with multiple MarshalAs attribute values' {
         { ctypes_struct Test {
-            [MarshalAs(1, 2)][int[]]$Foo
-        }} | Should -Throw 'Expecting 1 argument for MarshalAs attribute but found 2'
+                [MarshalAs(1, 2)][int[]]$Foo
+            } } | Should -Throw 'Expecting 1 argument for MarshalAs attribute but found 2'
     }
 
     It 'Fails with MarshalAs string SizeConst value' {
         { ctypes_struct Test {
-            [MarshalAs('LPWStr', SizeConst='a')][int[]]$Foo
-        }} | Should -Throw 'Failed to extract expected int value for SizeConst'
+                [MarshalAs('LPWStr', SizeConst = 'a')][int[]]$Foo
+            } } | Should -Throw 'Failed to extract expected int value for SizeConst'
     }
 
     It 'Fails with no FieldOffset attribute value' {
         { ctypes_struct Test {
-            [FieldOffset()][int[]]$Foo
-        }} | Should -Throw 'Expecting 1 argument for FieldOffset attribute but found 0'
+                [FieldOffset()][int[]]$Foo
+            } } | Should -Throw 'Expecting 1 argument for FieldOffset attribute but found 0'
     }
 
     It 'Fails with multiple FieldOffset attribute values' {
         { ctypes_struct Test {
-            [FieldOffset(1, 2)][int[]]$Foo
-        }} | Should -Throw 'Expecting 1 argument for FieldOffset attribute but found 2'
+                [FieldOffset(1, 2)][int[]]$Foo
+            } } | Should -Throw 'Expecting 1 argument for FieldOffset attribute but found 2'
     }
 
     It 'Creates struct with default (sequential) layout' {
@@ -114,7 +114,12 @@ Describe "New-CtypesStruct" {
         [SequentialStruct].IsExplicitLayout | Should -BeFalse
         [SequentialStruct].IsAutoLayout | Should -BeFalse
         [SequentialStruct].StructLayoutAttribute.Value | Should -Be 'Sequential'
-        [SequentialStruct].StructLayoutAttribute.Pack | Should -Be 0
+        if ($PSVersionTable.PSVersion -ge [version]'7.3') {
+            [SequentialStruct].StructLayoutAttribute.Pack | Should -Be 0
+        }
+        else {
+            [SequentialStruct].StructLayoutAttribute.Pack | Should -Be ([IntPtr]::Size)
+        }
         [SequentialStruct].StructLayoutAttribute.CharSet | Should -Be 'Ansi'
 
         [SequentialStruct].DeclaredFields.Count | Should -Be 1
@@ -134,7 +139,12 @@ Describe "New-CtypesStruct" {
         [ExplicitStruct].IsExplicitLayout | Should -BeTrue
         [ExplicitStruct].IsAutoLayout | Should -BeFalse
         [ExplicitStruct].StructLayoutAttribute.Value | Should -Be 'Explicit'
-        [ExplicitStruct].StructLayoutAttribute.Pack | Should -Be 0
+        if ($PSVersionTable.PSVersion -ge [version]'7.3') {
+            [ExplicitStruct].StructLayoutAttribute.Pack | Should -Be 0
+        }
+        else {
+            [ExplicitStruct].StructLayoutAttribute.Pack | Should -Be ([IntPtr]::Size)
+        }
         [ExplicitStruct].StructLayoutAttribute.CharSet | Should -Be 'Ansi'
 
         [ExplicitStruct].DeclaredFields.Count | Should -Be 1
@@ -158,7 +168,12 @@ Describe "New-CtypesStruct" {
         [AutoStruct].IsExplicitLayout | Should -BeFalse
         [AutoStruct].IsAutoLayout | Should -BeTrue
         [AutoStruct].StructLayoutAttribute.Value | Should -Be 'Auto'
-        [AutoStruct].StructLayoutAttribute.Pack | Should -Be 0
+        if ($PSVersionTable.PSVersion -ge [version]'7.3') {
+            [AutoStruct].StructLayoutAttribute.Pack | Should -Be 0
+        }
+        else {
+            [AutoStruct].StructLayoutAttribute.Pack | Should -Be ([IntPtr]::Size)
+        }
         [AutoStruct].StructLayoutAttribute.CharSet | Should -Be 'Ansi'
 
         [AutoStruct].DeclaredFields.Count | Should -Be 1
@@ -178,7 +193,12 @@ Describe "New-CtypesStruct" {
         [CharSetUnicode].IsExplicitLayout | Should -BeFalse
         [CharSetUnicode].IsAutoLayout | Should -BeFalse
         [CharSetUnicode].StructLayoutAttribute.Value | Should -Be 'Sequential'
-        [CharSetUnicode].StructLayoutAttribute.Pack | Should -Be 0
+        if ($PSVersionTable.PSVersion -ge [version]'7.3') {
+            [CharSetUnicode].StructLayoutAttribute.Pack | Should -Be 0
+        }
+        else {
+            [CharSetUnicode].StructLayoutAttribute.Pack | Should -Be ([IntPtr]::Size)
+        }
         [CharSetUnicode].StructLayoutAttribute.CharSet | Should -Be 'Unicode'
 
         [CharSetUnicode].DeclaredFields.Count | Should -Be 1
@@ -215,8 +235,8 @@ Describe "New-CtypesStruct" {
             [fieldoffset(2)][byte]$Field4
             [MarshalAs('LPWStr')]$Field5
             [marshalas(128)][int]$Field6
-            [MarshalAs('ByValArray', arraysubtype=1, sizeconst=1)][int[]]$Field7
-            [MarshalAs('ByValArray', ArraySubType='LPWStr', SizeConst=2)][string[]]$Field8
+            [MarshalAs('ByValArray', arraysubtype = 1, sizeconst = 1)][int[]]$Field7
+            [MarshalAs('ByValArray', ArraySubType = 'LPWStr', SizeConst = 2)][string[]]$Field8
             [FieldOffset(10)][MarshalAs('LPWStr')][string]$Field9
         }
 
@@ -226,7 +246,12 @@ Describe "New-CtypesStruct" {
         [Complex].IsExplicitLayout | Should -BeFalse
         [Complex].IsAutoLayout | Should -BeFalse
         [Complex].StructLayoutAttribute.Value | Should -Be 'Sequential'
-        [Complex].StructLayoutAttribute.Pack | Should -Be 0
+        if ($PSVersionTable.PSVersion -ge [version]'7.3') {
+            [Complex].StructLayoutAttribute.Pack | Should -Be 0
+        }
+        else {
+            [Complex].StructLayoutAttribute.Pack | Should -Be ([IntPtr]::Size)
+        }
         [Complex].StructLayoutAttribute.CharSet | Should -Be 'Ansi'
 
         [Complex].DeclaredFields.Count | Should -Be 9
@@ -278,10 +303,10 @@ Describe "New-CtypesStruct" {
         [Complex].DeclaredFields[6].CustomAttributes[0].ConstructorArguments.Count | Should -Be 1
         [Complex].DeclaredFields[6].CustomAttributes[0].ConstructorArguments[0].ArgumentType | Should -Be ([System.Runtime.InteropServices.UnmanagedType])
         [Complex].DeclaredFields[6].CustomAttributes[0].ConstructorArguments[0].Value | Should -Be ([System.Runtime.InteropServices.UnmanagedType]::ByValArray)
-        $arg = [Complex].DeclaredFields[6].CustomAttributes[0].NamedArguments | Where-Object MemberName -eq ArraySubType
+        $arg = [Complex].DeclaredFields[6].CustomAttributes[0].NamedArguments | Where-Object MemberName -EQ ArraySubType
         $arg.TypedValue.ArgumentType | Should -Be ([System.Runtime.InteropServices.UnmanagedType])
         $arg.TypedValue.Value | Should -Be 1
-        $arg = [Complex].DeclaredFields[6].CustomAttributes[0].NamedArguments | Where-Object MemberName -eq SizeConst
+        $arg = [Complex].DeclaredFields[6].CustomAttributes[0].NamedArguments | Where-Object MemberName -EQ SizeConst
         $arg.TypedValue.ArgumentType | Should -Be ([int])
         $arg.TypedValue.Value | Should -Be 1
 
@@ -292,10 +317,10 @@ Describe "New-CtypesStruct" {
         [Complex].DeclaredFields[7].CustomAttributes[0].ConstructorArguments.Count | Should -Be 1
         [Complex].DeclaredFields[7].CustomAttributes[0].ConstructorArguments[0].ArgumentType | Should -Be ([System.Runtime.InteropServices.UnmanagedType])
         [Complex].DeclaredFields[7].CustomAttributes[0].ConstructorArguments[0].Value | Should -Be ([System.Runtime.InteropServices.UnmanagedType]::ByValArray)
-        $arg = [Complex].DeclaredFields[7].CustomAttributes[0].NamedArguments | Where-Object MemberName -eq ArraySubType
+        $arg = [Complex].DeclaredFields[7].CustomAttributes[0].NamedArguments | Where-Object MemberName -EQ ArraySubType
         $arg.TypedValue.ArgumentType | Should -Be ([System.Runtime.InteropServices.UnmanagedType])
         $arg.TypedValue.Value | Should -Be ([System.Runtime.InteropServices.UnmanagedType]::LPWStr)
-        $arg = [Complex].DeclaredFields[7].CustomAttributes[0].NamedArguments | Where-Object MemberName -eq SizeConst
+        $arg = [Complex].DeclaredFields[7].CustomAttributes[0].NamedArguments | Where-Object MemberName -EQ SizeConst
         $arg.TypedValue.ArgumentType | Should -Be ([int])
         $arg.TypedValue.Value | Should -Be 2
 
@@ -310,5 +335,85 @@ Describe "New-CtypesStruct" {
         [Complex].DeclaredFields[8].CustomAttributes[1].ConstructorArguments.Count | Should -Be 1
         [Complex].DeclaredFields[8].CustomAttributes[1].ConstructorArguments[0].ArgumentType | Should -Be ([int])
         [Complex].DeclaredFields[8].CustomAttributes[1].ConstructorArguments[0].Value | Should -Be 10
+    }
+
+    It "Defines struct with pwsh Enum type" {
+        & {
+            enum PwshEnum {
+                Enum1 = 1
+                Enum2 = 2
+            }
+            ctypes_struct MY_STRUCT_PWSH_ENUM {
+                [PwshEnum]$Field1
+            }
+        }
+        [GC]::Collect()
+        [GC]::WaitForPendingFinalizers()
+
+        $copiedEnumType = [MY_STRUCT_PWSH_ENUM].Assembly.GetTypes() | Where-Object Name -EQ PwshEnum
+        $copiedEnumType | Should -Not -BeNullOrEmpty
+        $copiedEnumType.CustomAttributes |
+            Where-Object { $_.AttributeType -eq [System.FlagsAttribute] } |
+            Should -BeNullOrEmpty
+
+        [MY_STRUCT_PWSH_ENUM].DeclaredFields.Count | Should -Be 1
+
+        [MY_STRUCT_PWSH_ENUM].DeclaredFields[0].Name | Should -Be 'Field1'
+        [MY_STRUCT_PWSH_ENUM].DeclaredFields[0].FieldType | Should -Be $copiedEnumType
+        [MY_STRUCT_PWSH_ENUM].DeclaredFields[0].CustomAttributes.Count | Should -Be 0
+
+        [Enum]::GetValues($copiedEnumType) | ForEach-Object ToString | Should -Be @('Enum1', 'Enum2')
+    }
+
+    It "Defines struct with pwsh Enum flags type" {
+        & {
+            [Flags()] enum PwshEnumFlags {
+                Enum1 = 1
+                Enum2 = 2
+            }
+            ctypes_struct MY_STRUCT_PWSH_FLAGS {
+                [PwshEnumFlags]$Field1
+            }
+        }
+        [GC]::Collect()
+        [GC]::WaitForPendingFinalizers()
+
+        $copiedEnumType = [MY_STRUCT_PWSH_FLAGS].Assembly.GetTypes() | Where-Object Name -EQ PwshEnumFlags
+        $copiedEnumType | Should -Not -BeNullOrEmpty
+        $copiedEnumType.CustomAttributes |
+            Where-Object { $_.AttributeType -eq [System.FlagsAttribute] } |
+            Should -Not -BeNullOrEmpty
+
+        [MY_STRUCT_PWSH_FLAGS].DeclaredFields.Count | Should -Be 1
+
+        [MY_STRUCT_PWSH_FLAGS].DeclaredFields[0].Name | Should -Be 'Field1'
+        [MY_STRUCT_PWSH_FLAGS].DeclaredFields[0].FieldType | Should -Be $copiedEnumType
+        [MY_STRUCT_PWSH_FLAGS].DeclaredFields[0].CustomAttributes.Count | Should -Be 0
+
+        [Enum]::GetValues($copiedEnumType) | ForEach-Object ToString | Should -Be @('Enum1', 'Enum2')
+    }
+
+    It "Defines struct with builtin Enum type" {
+        ctypes_struct MY_STRUCT_BUILTIN_ENUM {
+            [System.IO.FileMode]$Field1
+        }
+
+        [MY_STRUCT_BUILTIN_ENUM].DeclaredFields.Count | Should -Be 1
+
+        [MY_STRUCT_BUILTIN_ENUM].DeclaredFields[0].Name | Should -Be 'Field1'
+        [MY_STRUCT_BUILTIN_ENUM].DeclaredFields[0].FieldType | Should -Be ([System.IO.FileMode])
+        [MY_STRUCT_BUILTIN_ENUM].DeclaredFields[0].CustomAttributes.Count | Should -Be 0
+    }
+
+    It "Defines struct with builtin Enum flags type" {
+        ctypes_struct MY_STRUCT_BUILTIN_FLAGS {
+            [System.IO.FileShare]$Field1
+        }
+
+        [MY_STRUCT_BUILTIN_FLAGS].DeclaredFields.Count | Should -Be 1
+
+        [MY_STRUCT_BUILTIN_FLAGS].DeclaredFields[0].Name | Should -Be 'Field1'
+        [MY_STRUCT_BUILTIN_FLAGS].DeclaredFields[0].FieldType | Should -Be ([System.IO.FileShare])
+        [MY_STRUCT_BUILTIN_FLAGS].DeclaredFields[0].CustomAttributes.Count | Should -Be 0
     }
 }
