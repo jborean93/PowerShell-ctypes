@@ -44,6 +44,14 @@ It also wraps the raw handle in a `SafeFileHandle` making it easy to dispose the
 $k32 = New-CtypesLib Kernel32.dll
 $advapi = New-CtypesLib Advapi32.dll
 
+[Flags()] enum PrivilegeAttributes {
+    NONE = 0x00000000
+    SE_PRIVILEGE_ENABLED_BY_DEFAULT = 0x00000001
+    SE_PRIVILEGE_ENABLED = 0x00000002
+    SE_PRIVILEGE_REMOVED = 0x00000004
+    SE_PRIVILEGE_USED_FOR_ACCESS = 0x80000000
+}
+
 ctypes_struct LUID {
     [int]$LowPart
     [int]$HighPart
@@ -51,12 +59,12 @@ ctypes_struct LUID {
 
 ctypes_struct LUID_AND_ATTRIBUTES {
     [LUID]$Luid
-    [int]$Attributes
+    [PrivilegeAttributes]$Attributes
 }
 
 ctypes_struct TOKEN_PRIVILEGES {
     [int]$PrivilegeCount
-    [MarshalAs('LPArray', SizeConst=1)][LUID_AND_ATTRIBUTES[]]$Privileges
+    [MarshalAs('ByValArray', SizeConst=1)][LUID_AND_ATTRIBUTES[]]$Privileges
 }
 
 $proc = $k32.SetLastError().OpenProcess[IntPtr](
@@ -68,8 +76,9 @@ if ($proc -eq [IntPtr]::Zero) {
 }
 
 $handle = [IntPtr]::Zero
+$buffer = [IntPtr]::Zero
 try {
-    $res = $advapi.SetLastError().OpenProcessHandle[bool](
+    $res = $advapi.SetLastError().OpenProcessToken[bool](
         $proc,
         [System.Security.Principal.TokenAccessLevels]::Query,
         [ref]$handle)
@@ -77,8 +86,64 @@ try {
         throw [System.ComponentModel.Win32Exception]$advapi.LastError
     }
 
+    $bufferLength = 0
+    $null = $advapi.SetLastError().GetTokenInformation[bool](
+        $handle,
+        3,  # TokenPrivileges
+        $null,
+        0,
+        [ref]$bufferLength)
+    $buffer = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($bufferLength)
+
+    $res = $advapi.GetTokenInformation(
+        $handle,
+        3,
+        $buffer,
+        $bufferLength,
+        [ref]$bufferLength)
+    if (-not $res) {
+        throw [System.ComponentModel.Win32Exception]$advapi.LastError
+    }
+
+    $privileges = [System.Runtime.InteropServices.Marshal]::PtrToStructure($buffer,
+        [type][TOKEN_PRIVILEGES])
+    $currentPtr = [IntPtr]::Add($buffer, 4)  # Offset to the Privileges array
+    for ($i = 0; $i -lt $privileges.PrivilegeCount; $i++) {
+        $info = [System.Runtime.InteropServices.Marshal]::PtrToStructure($currentPtr,
+            [type][LUID_AND_ATTRIBUTES])
+
+        $luid = $info.Luid
+        $name = [System.Text.StringBuilder]::new(0)
+        $nameLength = 0
+        $null = $advapi.SetLastError().CharSet('Unicode').LookupPrivilegeNameW[bool](
+            $null,
+            [ref]$luid,
+            $name,
+            [ref]$nameLength)
+
+        $null = $name.EnsureCapacity($nameLength + 1)
+        $res = $advapi.LookupPrivilegeNameW(
+            $null,
+            [ref]$luid,
+            $name,
+            [ref]$nameLength)
+        if (-not $res) {
+            throw [System.ComponentModel.Win32Exception]$advapi.LastError
+        }
+
+        [PSCustomObject]@{
+            Name = $name.ToString()
+            Luid = $luid
+            Attributes = $info.Attributes
+        }
+        $currentPtr = [IntPtr]::Add($currentPtr, [System.Runtime.InteropServices.Marshal]::SizeOf(
+            [type][LUID_AND_ATTRIBUTES]))
+    }
 }
 finally {
+    if ($buffer -ne [IntPtr]::Zero) {
+        [System.Runtime.InteropServices.Marshal]::FreeHGlobal($buffer)
+    }
     if ($handle -ne [IntPtr]::Zero) {
         $k32.CloseHandle[void]($handle)
     }
