@@ -64,7 +64,7 @@ public sealed class CtypesStructCommand : PSCmdlet
             return;
         }
 
-        List<StructFieldInfo> fields = new();
+        List<TypeInformation> fields = new();
 
         foreach (StatementAst statement in ast.EndBlock.Statements)
         {
@@ -107,22 +107,25 @@ public sealed class CtypesStructCommand : PSCmdlet
         TypeBuilder tb = mb.DefineType(Name, typeAttributes, typeof(ValueType));
         tb.SetCustomAttribute(structLayout);
 
-        foreach (StructFieldInfo info in fields)
+        foreach (TypeInformation info in fields)
         {
             FieldAttributes attr = FieldAttributes.Public;
             List<CustomAttributeBuilder> customAttrs = new();
 
-            if (info.MarshalAs != null)
+            CustomAttributeBuilder? marshalAsBuilder = info.CreateMarshalAsAttribute();
+            if (marshalAsBuilder != null)
             {
-                customAttrs.Add(CreateMarshalAsAttribute(info.MarshalAs));
+                customAttrs.Add(marshalAsBuilder);
                 attr |= FieldAttributes.HasFieldMarshal;
             }
-            if (info.FieldOffset != null)
+
+            CustomAttributeBuilder? fieldOffsetBuilder = info.CreateFieldOffsetAttribute();
+            if (fieldOffsetBuilder != null)
             {
-                customAttrs.Add(CreateFieldOffsetAttribute(info.FieldOffset));
+                customAttrs.Add(fieldOffsetBuilder);
             }
 
-            Type fieldType = info.FieldType;
+            Type fieldType = info.Type;
 #if CORE
             // Enums in pwsh are defined with RunAndCollect and cannot be used
             // in an assembly that is also not collectible. Copy across the
@@ -143,7 +146,7 @@ public sealed class CtypesStructCommand : PSCmdlet
         tb.CreateType();
     }
 
-    private static StructFieldInfo ParseFieldStatement(StatementAst ast)
+    private static TypeInformation ParseFieldStatement(StatementAst ast)
     {
         ExpressionAst? exp = null;
         if (
@@ -180,7 +183,7 @@ public sealed class CtypesStructCommand : PSCmdlet
                 )
                 {
                     // [MarshalAs(...)][Type]$Var
-                    marshalAs = ParseMarshalAs(marshalAsAttr);
+                    marshalAs = AstParser.ParseMarshalAs(marshalAsAttr);
                 }
                 else if (
                     attrExp.Attribute.TypeName.FullName.ToLowerInvariant() == "fieldoffset" &&
@@ -188,7 +191,7 @@ public sealed class CtypesStructCommand : PSCmdlet
                 )
                 {
                     // [FieldOffset(...)][Type]$Var
-                    fieldOffset = ParseFieldOffset(fieldOffsetAttr);
+                    fieldOffset = AstParser.ParseFieldOffset(fieldOffsetAttr);
                 }
                 else
                 {
@@ -206,129 +209,11 @@ public sealed class CtypesStructCommand : PSCmdlet
 
         if (exp is VariableExpressionAst varExp && !varExp.Splatted)
         {
-            return new(varExp.VariablePath.UserPath, fieldType, marshalAs, fieldOffset);
+            return new(varExp.VariablePath.UserPath, fieldType, marshalAs: marshalAs, fieldOffset: fieldOffset);
         }
 
         throw new ArgumentException(
             $"ctypes_struct line '{ast.ToString()}' must be a variable expression [type]$FieldName");
-    }
-
-    private static FieldOffsetAttribute ParseFieldOffset(AttributeAst attr)
-    {
-        if (attr.PositionalArguments.Count != 1)
-        {
-            throw new ArgumentException(
-                $"Expecting 1 argument for FieldOffset attribute but found {attr.PositionalArguments.Count}");
-        }
-
-        FieldOffsetAttribute fieldOffset = new(GetAttributeIntValue(attr.PositionalArguments[0], "FieldOffset"));
-        return fieldOffset;
-    }
-
-    private static MarshalAsAttribute ParseMarshalAs(AttributeAst attr)
-    {
-        if (attr.PositionalArguments.Count != 1)
-        {
-            throw new ArgumentException(
-                $"Expecting 1 argument for MarshalAs attribute but found {attr.PositionalArguments.Count}");
-        }
-
-        MarshalAsAttribute? marshalAs = null;
-        if (TryGetAttributeValue(attr.PositionalArguments[0], out var intMarshalAs, out var stringMarshalAs))
-        {
-            if (stringMarshalAs != null && Enum.TryParse<UnmanagedType>(stringMarshalAs, out var unmanagedType))
-            {
-                marshalAs = new(unmanagedType);
-            }
-            else if (intMarshalAs != null && intMarshalAs < short.MaxValue)
-            {
-                marshalAs = new((short)intMarshalAs);
-            }
-        }
-
-        if (marshalAs == null)
-        {
-            throw new ArgumentException($"Failed to extract MarshalAs UnmanagedType value for {attr.ToString()}");
-        }
-
-        foreach (NamedAttributeArgumentAst arg in attr.NamedArguments)
-        {
-            switch (arg.ArgumentName.ToLowerInvariant())
-            {
-                case "arraysubtype":
-                    marshalAs.ArraySubType = GetAttributeEnumValue<UnmanagedType>(arg.Argument, "ArraySubType");
-                    break;
-
-                case "sizeconst":
-                    marshalAs.SizeConst = GetAttributeIntValue(arg.Argument, "SizeConst");
-                    break;
-
-                default:
-                    throw new ArgumentException(
-                        $"Unsupported MarshalAs named argument '{arg.ArgumentName}', expecting ArraySubType or SizeConst");
-            }
-        }
-
-        return marshalAs;
-    }
-
-    private static string GetAttributeStringValue(ExpressionAst ast, string attributeName)
-    {
-        if (TryGetAttributeValue(ast, out var _, out var strValue) && strValue != null)
-        {
-            return (string)strValue;
-        }
-
-        throw new ArgumentException($"Failed to extract expected string value from {attributeName}");
-    }
-
-    private static int GetAttributeIntValue(ExpressionAst ast, string attributeName)
-    {
-        if (TryGetAttributeValue(ast, out var intValue, out var _) && intValue != null)
-        {
-            return (int)intValue;
-        }
-
-        throw new ArgumentException($"Failed to extract expected int value for {attributeName}");
-    }
-
-    private static T GetAttributeEnumValue<T>(ExpressionAst ast, string attributeName)
-        where T : struct
-    {
-        if (TryGetAttributeValue(ast, out var intValue, out var strValue))
-        {
-            if (intValue != null)
-            {
-                return (T)(object)intValue;
-            }
-
-            if (strValue != null && Enum.TryParse<T>(strValue, true, out var enumValue))
-            {
-                return enumValue;
-            }
-        }
-
-        Type enumType = typeof(T);
-        throw new ArgumentException($"Failed to extract expected enum {enumType.Name} value for {attributeName}");
-    }
-
-    private static bool TryGetAttributeValue(ExpressionAst ast, out int? intValue, out string? stringValue)
-    {
-        intValue = null;
-        stringValue = null;
-        if (ast is StringConstantExpressionAst stringExp)
-        {
-            stringValue = stringExp.Value;
-            return true;
-        }
-        else if (ast is ConstantExpressionAst constExp)
-        {
-            bool res = int.TryParse(constExp.Value.ToString(), out var extractedInt);
-            intValue = extractedInt;
-            return res;
-        }
-
-        return false;
     }
 
     private static CustomAttributeBuilder CreateStructLayoutAttribute(LayoutKind layoutKind, CharSet? charSet = null,
@@ -356,39 +241,6 @@ public sealed class CtypesStructCommand : PSCmdlet
         );
     }
 
-    private static CustomAttributeBuilder CreateMarshalAsAttribute(MarshalAsAttribute value)
-    {
-        List<FieldInfo> fields = new();
-        List<object> values = new();
-
-        if (value.SizeConst != 0)
-        {
-            fields.Add(ReflectionInfo.MarshalAsSizeConstField);
-            values.Add(value.SizeConst);
-        }
-
-        if (value.ArraySubType != 0)
-        {
-            fields.Add(ReflectionInfo.MarshalAsArraySubTypeField);
-            values.Add(value.ArraySubType);
-        }
-
-        return new(
-            ReflectionInfo.MarshalAsCtor,
-            new object[] { value.Value },
-            fields.ToArray(),
-            values.ToArray()
-        );
-    }
-
-    private static CustomAttributeBuilder CreateFieldOffsetAttribute(FieldOffsetAttribute value)
-    {
-        return new(
-            ReflectionInfo.FieldOffsetCtor,
-            new object[] { value.Value }
-        );
-    }
-
 #if CORE
     private static Type CopyEnumToAssembly(Type enumToCopy, ModuleBuilder mb)
     {
@@ -413,21 +265,4 @@ public sealed class CtypesStructCommand : PSCmdlet
         return eb.CreateType()!;
     }
 #endif
-}
-
-internal class StructFieldInfo
-{
-    public string Name { get; }
-    public Type FieldType { get; }
-    public MarshalAsAttribute? MarshalAs { get; }
-    public FieldOffsetAttribute? FieldOffset { get; }
-
-    public StructFieldInfo(string name, Type fieldType, MarshalAsAttribute? marshalAs,
-        FieldOffsetAttribute? fieldOffset)
-    {
-        Name = name;
-        FieldType = fieldType;
-        MarshalAs = marshalAs;
-        FieldOffset = fieldOffset;
-    }
 }

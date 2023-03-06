@@ -29,7 +29,6 @@ public sealed class Library : IDynamicMetaObjectProvider
     {
         string assemblyName = $"Ctypes.PInvoke.{dllName}";
 
-
         // Dotnet Framework cannot call PInvoke methods in a collectable
         // assembly so use Run there.
         _assembly = AssemblyBuilder.DefineDynamicAssembly(
@@ -90,9 +89,7 @@ public sealed class Library : IDynamicMetaObjectProvider
             return null;
         }
 
-        CustomAttributeBuilder marshalAs = new(
-            ReflectionInfo.MarshalAsCtor,
-            new object[] { attr });
+        MarshalAsAttribute marshalAs = new(attr);
 
         PSObject valueObj = PSObject.AsPSObject(value);
         PSNoteProperty marshalAsInfo = new(MARSHAL_AS_NOTE_NAME, marshalAs);

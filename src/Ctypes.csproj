@@ -4,6 +4,7 @@
     <!--System.Reflection.Emit does not work with netstandard2.0-->
     <TargetFrameworks>net472;net6.0</TargetFrameworks>
     <AssemblyName>Ctypes</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
     <LangVersion>10.0</LangVersion>
   </PropertyGroup>
