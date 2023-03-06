@@ -1,6 +1,6 @@
 # Changelog for Ctypes
 
-## v0.2.0 - TBD
+## v0.2.0 - 2023-03-06
 
 + Add support for defining C callback/delegate functions using a PowerShell scriptblock
 
