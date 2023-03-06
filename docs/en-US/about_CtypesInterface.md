@@ -258,6 +258,109 @@ $lib.SetLastError().Returns([IntPtr]).CreateFileW(
     [IntPtr]::Zero)
 ```
 
+# Delegate Functions
+Some C APIs require an argument that is a delegate/function called inside the unmanaged function.
+A delegate or callback argument can be written as a PowerShell scriptblock and the Ctypes code will automatically infer the return type and argument types from the scriptblock definition.
+To define a proper delegate it is important to define both the `[OutputType()]` attribute and the `[Type]` of each parameter in a `param()` block.
+For example the [CertEnumSystemStoreLocation](https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certenumsystemstorelocation) function is defined as:
+
+```c
+BOOL CertEnumSystemStoreLocation(
+  [in] DWORD                               dwFlags,
+  [in] void                                *pvArg,
+  [in] PFN_CERT_ENUM_SYSTEM_STORE_LOCATION pfnEnum
+);
+
+PFN_CERT_ENUM_SYSTEM_STORE_LOCATION PfnCertEnumSystemStoreLocation;
+
+BOOL PfnCertEnumSystemStoreLocation(
+  [in] LPCWSTR pwszStoreLocation,
+  [in] DWORD dwFlags,
+  [in] void *pvReserved,
+  [in] void *pvArg
+)
+{...}
+```
+
+This is how you can call this function using a scriptblock:
+
+```powershell
+$crypt = New-CtypesLib Crypt32.dll
+
+$stores = [System.Collections.Generic.List[string]]::new()
+
+$storeHandle = [System.Runtime.InteropServices.GCHandle]::Alloc($stores)
+$res = $crypt.Returns([bool]).SetLastError().CertEnumSystemStoreLocation(
+    0,
+    [System.Runtime.InteropServices.GCHandle]::ToIntPtr($storeHandle),
+    {
+        [OutputType([bool])]
+        param (
+            [System.Runtime.InteropServices.MarshalAs([System.Runtime.InteropServices.UnmanagedType]::LPWStr)]
+            [string]$StoreLocation,
+            [int]$Flags,
+            [IntPtr]$Reserved,
+            [IntPtr]$Arg
+        )
+
+        $myListPtr = [System.Runtime.InteropServices.GCHandle]::FromIntPtr($Arg)
+        $myList = [System.Collections.Generic.List[String]]($myListPtr.Target)
+
+        $myList.Add($StoreLocation)
+
+        return $true
+})
+$storeHandle.Free()
+
+if (-not $res) {
+    throw [System.ComponentModel.Win32Exception]$crypt.LastError
+}
+
+$stores
+```
+
+The `[OutputType([bool])]` is used to denote the delegate return the type `bool` as per the signature.
+The `param` block defines each of the delegate arguments and their types.
+The `pwszStoreLocation` is defined as a `[String]` with a custom `MarshalAs` behaviour but it could also be defined as `[IntPtr]` with manual marshaling done inside the delegate.
+Finally the function returns/outputs the return type which PowerShell will handle automatically for you.
+
+It is also possible to predefine the delegate in the function by using a scriptblock without any code after the param block:
+
+```powershell
+$crypt = New-CtypesLib Crypt32.dll
+
+$crypt.Returns([bool]).SetLastError().CertEnumSystemStoreLocation = [Ordered]@{
+    Flags = [int]
+    Arg = [IntPtr]
+    Callback = {
+        [OutputType([bool])]
+        param (
+            [System.Runtime.InteropServices.MarshalAs([System.Runtime.InteropServices.UnmanagedType]::LPWStr)]
+            [string]$StoreLocation,
+            [int]$Flags,
+            [IntPtr]$Reserved,
+            [IntPtr]$Arg
+        )
+
+        # Any code here will be ignored, this is only to dynamically create the delegate.
+    }
+}
+
+$res = $crypt.CertEnumSystemStoreLocation(0, $null, {
+    Write-Host $args[0]
+
+    $true
+})
+if (-not $res) {
+    throw [System.ComponentModel.Win32Exception]$crypt.LastError
+}
+```
+
+The scriptblock is run in the current thread and has access to the same scope as the caller.
+This means it can access the same variables as the outside scope instead of trying to marshal a managed object through an `[IntPtr]` like the first example.
+
+_Note: ScriptBlock delegates are only supported in functions that will call the delegate in the same thread. Delegates which are run asynchronously will most likely crash the current process._
+
 # Viewing Existing Definitions
 Once a method has been pre-defined or when it is first called, the method is added as a `CodeMethod` member of the underlying library object.
 This ensures that the method does not need to be generated every time it is called and it provides an easy way to inspect the signature that was generated.

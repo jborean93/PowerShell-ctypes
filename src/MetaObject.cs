@@ -55,13 +55,15 @@ internal sealed class LibraryMetaObject : DynamicMetaObject
             // requested. Due to the recursive nature of the InvokeMemberBinder
             // it will call on pwsh to find the method again but now it has the
             // PSCodeMethod it will be invoked instead of this.
-            ParameterInfo[] paramInformation = args
-                ?.Select(a => new ParameterInfo(null, a.Value))
-                ?.ToArray() ?? Array.Empty<ParameterInfo>();
+            TypeInformation[] paramInformation = args
+                ?.Select((a, i) => MetaObject.ParseParamInfo(_library._builder, binder.Name, $"arg{i + 1}", a.Value))
+                ?.ToArray() ?? Array.Empty<TypeInformation>();
 
             _meta.DefinePInvokeMember(
                 binder.Name,
-                returnType != null ? new ParameterInfo(null, returnType, forReturn: true) : null,
+                returnType != null
+                    ? MetaObject.ParseParamInfo(_library._builder, binder.Name, "", returnType, forReturn: true)
+                    : null,
                 paramInformation);
         }
 
@@ -84,14 +86,14 @@ internal sealed class MetaObject : DynamicObject
     public override bool TrySetMember(SetMemberBinder binder, object? value)
     {
         // Define the new PInvoke member.The value must be a list or ordered dictionary.
-        ParameterInfo[] paramInformation;
+        TypeInformation[] paramInformation;
         if (value is IList valueList)
         {
-            paramInformation = GetParametersFromList(valueList);
+            paramInformation = GetParametersFromList(_library._builder, binder.Name, valueList);
         }
         else if (value is OrderedDictionary valueDict)
         {
-            paramInformation = GetParametersFromDict(valueDict);
+            paramInformation = GetParametersFromDict(_library._builder, binder.Name, valueDict);
         }
         else
         {
@@ -104,15 +106,15 @@ internal sealed class MetaObject : DynamicObject
         return true;
     }
 
-    internal void DefinePInvokeMember(string name, ParameterInfo? returnType, ParameterInfo[] parameters)
+    internal void DefinePInvokeMember(string name, TypeInformation? returnType, TypeInformation[] parameters)
     {
-
         MethodInfo meth = CreatePInvokeExtern(
             _library._builder,
             _library.DllName,
             name,
             _library._entryPoint,
-            returnType ?? new ParameterInfo(null, _library._returnType ?? typeof(int), forReturn: true),
+            returnType ?? ParseParamInfo(_library._builder, name, "", _library._returnType ?? typeof(int),
+                forReturn: true),
             parameters,
             _library._setLastError,
             _library._callingConvention,
@@ -136,8 +138,8 @@ internal sealed class MetaObject : DynamicObject
         string dllName,
         string name,
         string? entryPoint,
-        ParameterInfo returnType,
-        ParameterInfo[] parameterTypes,
+        TypeInformation returnType,
+        TypeInformation[] parameterTypes,
         bool? setLastError,
         CallingConvention? callingConvention,
         CharSet? charSet)
@@ -182,14 +184,15 @@ internal sealed class MetaObject : DynamicObject
         MethodBuilder pinvoke = tb.DefineMethod(
             $"Extern{name}",
             MethodAttributes.Private | MethodAttributes.Static,
-            returnType.ParamType,
-            parameterTypes.Select(p => p.ParamType == typeof(IntPtr?) ? typeof(IntPtr) : p.ParamType).ToArray());
+            returnType.Type,
+            parameterTypes.Select(p => p.Type == typeof(IntPtr?) ? typeof(IntPtr) : p.Type).ToArray());
         pinvoke.SetCustomAttribute(dllImport);
 
-        if (returnType.MarshalAs != null)
+        CustomAttributeBuilder? marshalAsBuilder = returnType.CreateMarshalAsAttribute();
+        if (marshalAsBuilder != null)
         {
             ParameterBuilder pb = pinvoke.DefineParameter(0, ParameterAttributes.HasFieldMarshal, "ret");
-            pb.SetCustomAttribute(returnType.MarshalAs);
+            pb.SetCustomAttribute(marshalAsBuilder);
         }
 
         // This defines the wrapper Method that is added to the PSCodeMethod
@@ -199,9 +202,9 @@ internal sealed class MetaObject : DynamicObject
         MethodBuilder wrapper = tb.DefineMethod(
             name,
             MethodAttributes.Public | MethodAttributes.Static,
-            returnType.ParamType,
+            returnType.Type,
             new Type[] { typeof(PSObject) }
-                .Concat(parameterTypes.Select(p => p.ParamType))
+                .Concat(parameterTypes.Select(p => p.Type))
                 .ToArray());
 
         ILGenerator il = wrapper.GetILGenerator();
@@ -212,24 +215,26 @@ internal sealed class MetaObject : DynamicObject
         wrapper.DefineParameter(1, ParameterAttributes.None, "lib");
         for (int i = 1; i <= parameterTypes.Length; i++)
         {
-            ParameterInfo info = parameterTypes[i - 1];
+            TypeInformation info = parameterTypes[i - 1];
 
             ParameterAttributes attr = ParameterAttributes.None;
             if (info.MarshalAs != null)
             {
                 attr |= ParameterAttributes.HasFieldMarshal;
             }
-            ParameterBuilder pb = pinvoke.DefineParameter(i, attr, info.Name ?? $"arg{i}");
-            if (info.MarshalAs != null)
+            ParameterBuilder pb = pinvoke.DefineParameter(i, attr, info.Name);
+
+            marshalAsBuilder = info.CreateMarshalAsAttribute();
+            if (marshalAsBuilder != null)
             {
-                pb.SetCustomAttribute(info.MarshalAs);
+                pb.SetCustomAttribute(marshalAsBuilder);
             }
 
-            pb = wrapper.DefineParameter(i + 1, ParameterAttributes.None, info.Name ?? $"arg{i}");
+            pb = wrapper.DefineParameter(i + 1, ParameterAttributes.None, info.Name);
 
             il.Emit(OpCodes.Ldarg_S, i);
 
-            if (info.ParamType == typeof(IntPtr?))
+            if (info.Type == typeof(IntPtr?))
             {
                 if (nullPtr == null)
                 {
@@ -288,44 +293,77 @@ internal sealed class MetaObject : DynamicObject
             ?? throw new RuntimeException($"Unknown error getting PInvoke method for {name}");
     }
 
-    private static ParameterInfo[] GetParametersFromList(IList raw)
+    private static Type CreateDelegateType(ModuleBuilder builder, string delegateName,
+        TypeInformation returnType, TypeInformation[] parameterTypes)
+    {
+        TypeBuilder tb = builder.DefineType(
+            delegateName,
+            TypeAttributes.Sealed | TypeAttributes.Public,
+            typeof(MulticastDelegate));
+
+        ConstructorBuilder ctorBulder = tb.DefineConstructor(
+            MethodAttributes.RTSpecialName | MethodAttributes.HideBySig | MethodAttributes.Public,
+            CallingConventions.Standard,
+            new[] { typeof(object), typeof(IntPtr) });
+        ctorBulder.SetImplementationFlags(MethodImplAttributes.CodeTypeMask);
+
+        MethodBuilder mb = tb.DefineMethod(
+            "Invoke",
+            MethodAttributes.HideBySig | MethodAttributes.Virtual | MethodAttributes.Public,
+            returnType.Type,
+            parameterTypes.Select(p => p.Type).ToArray());
+        mb.SetImplementationFlags(MethodImplAttributes.CodeTypeMask);
+
+        CustomAttributeBuilder? marshalAsBuilder = returnType.CreateMarshalAsAttribute();
+        if (marshalAsBuilder != null)
+        {
+            ParameterBuilder pb = mb.DefineParameter(0, ParameterAttributes.HasFieldMarshal, "ret");
+            pb.SetCustomAttribute(marshalAsBuilder);
+        }
+
+        for (int i = 1; i <= parameterTypes.Length; i++)
+        {
+            TypeInformation info = parameterTypes[i - 1];
+
+            ParameterAttributes attr = ParameterAttributes.None;
+            if (info.MarshalAs != null)
+            {
+                attr |= ParameterAttributes.HasFieldMarshal;
+            }
+
+            ParameterBuilder pb = mb.DefineParameter(i, attr, info.Name);
+
+            marshalAsBuilder = info.CreateMarshalAsAttribute();
+            if (marshalAsBuilder != null)
+            {
+                pb.SetCustomAttribute(marshalAsBuilder);
+            }
+        }
+
+        return tb.CreateType()
+            ?? throw new RuntimeException($"Unknown error defining delegate {delegateName}");
+    }
+
+    private static TypeInformation[] GetParametersFromList(ModuleBuilder builder, string methodName, IList raw)
     {
         return raw
             .Cast<object?>()
-            .Select(r => ParseParamInfo(null, r))
+            .Select((r, i) => ParseParamInfo(builder, methodName, $"arg{i + 1}", r))
             .ToArray();
     }
 
-    private static ParameterInfo[] GetParametersFromDict(OrderedDictionary raw)
+    private static TypeInformation[] GetParametersFromDict(ModuleBuilder builder, string methodName,
+        OrderedDictionary raw)
     {
         return raw
             .Cast<DictionaryEntry>()
-            .Select(kvp => ParseParamInfo(kvp.Key.ToString(), kvp.Value))
+            .Select((kvp, i) => ParseParamInfo(builder, methodName, kvp.Key.ToString() ?? $"arg{i + 1}", kvp.Value))
             .ToArray();
     }
 
-    private static ParameterInfo ParseParamInfo(string? name, object? info)
+    internal static TypeInformation ParseParamInfo(ModuleBuilder builder, string methodName, string name, object? value,
+        bool forReturn = false)
     {
-        ParameterInfo param = new(name, info);
-        if (param.ParamType is not Type)
-        {
-            throw new ArgumentException($"PInvoke signature value must be $null or a [type] value");
-        }
-
-        return param;
-    }
-}
-
-internal sealed class ParameterInfo
-{
-    public string? Name { get; }
-    public Type ParamType { get; }
-
-    public CustomAttributeBuilder? MarshalAs { get; }
-
-    public ParameterInfo(string? name, object? value, bool forReturn = false)
-    {
-        Name = name;
         PSObject? valuePSObj = null;
 
         if (value is PSObject)
@@ -338,6 +376,7 @@ internal sealed class ParameterInfo
             valuePSObj = PSObject.AsPSObject(value);
         }
 
+        MarshalAsAttribute? marshalAs = null;
         if (valuePSObj != null)
         {
             PSNoteProperty? marshalAsInfo = valuePSObj.Properties
@@ -345,32 +384,43 @@ internal sealed class ParameterInfo
                 .Cast<PSNoteProperty>()
                 .FirstOrDefault();
 
-            MarshalAs = (CustomAttributeBuilder?)marshalAsInfo?.Value;
+            marshalAs = (MarshalAsAttribute?)marshalAsInfo?.Value;
         }
 
+        Type valueType;
         if (value is PSReference refValue)
         {
-            if (refValue.Value is Type valueType)
+            if (refValue.Value is Type refType)
             {
-                ParamType = valueType.MakeByRefType();
+                valueType = refType.MakeByRefType();
             }
             else
             {
-                ParamType = (refValue.Value?.GetType() ?? typeof(IntPtr)).MakeByRefType();
+                valueType = (refValue.Value?.GetType() ?? typeof(IntPtr)).MakeByRefType();
             }
         }
         else if (value is Type paramType)
         {
-            ParamType = paramType;
+            valueType = paramType;
+        }
+        else if (value is ScriptBlock sbk)
+        {
+            ScriptBlockDelegate info = new(sbk);
+            TypeInformation returnType = info.GetReturnType();
+            TypeInformation[] parameterTypes = info.GetParameterTypes();
+
+            valueType = CreateDelegateType(builder, $"{methodName}_{name}_Delegate", returnType, parameterTypes);
         }
         else
         {
-            ParamType = value?.GetType() ?? typeof(IntPtr);
+            valueType = value?.GetType() ?? typeof(IntPtr);
         }
 
-        if (!forReturn && ParamType == typeof(IntPtr))
+        if (!forReturn && valueType == typeof(IntPtr))
         {
-            ParamType = typeof(Nullable<IntPtr>);
+            valueType = typeof(Nullable<IntPtr>);
         }
+
+        return new(name, valueType, marshalAs: marshalAs);
     }
 }

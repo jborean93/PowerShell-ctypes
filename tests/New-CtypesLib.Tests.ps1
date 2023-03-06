@@ -799,6 +799,88 @@ Describe "New-CtypesLib" {
             $params[1].Name | Should -Be arg2
             $params[1].ParameterType | Should -Be ([MY_STRUCT].MakeByRefType())
         }
+
+        It "defines function with callback" {
+            $lib = New-CtypesLib myLib
+            $lib.MyFunc = (
+                {
+                    param()
+                },
+                {
+                    [OutputType([bool])]
+                    [System.Runtime.InteropServices.MarshalAs([System.Runtime.InteropServices.UnmanagedType]::U1)]
+                    param ($Test)
+                },
+                {
+                    [OutputType([IntPtr])]
+                    param (
+                        [System.Runtime.InteropServices.MarshalAs([System.Runtime.InteropServices.UnmanagedType]::LPWStr)]
+                        [String]$Param1,
+
+                        [IntPtr]$Param2
+                    )
+                }
+            )
+
+            $actual = $lib.MyFunc
+            $actual | Should -BeOfType ([System.Management.Automation.PSCodeMethod])
+            $actual.CodeReference.Name | Should -Be MyFunc
+            $actual.CodeReference.ReturnType | Should -Be ([int])
+
+            $params = $actual.CodeReference.GetParameters()
+            $params.Count | Should -Be 4
+            $params[0].Name | Should -Be lib
+            $params[0].ParameterType | Should -Be ([PSObject])
+
+            $params[1].Name | Should -Be arg1
+            $params[1].ParameterType.IsSubclassOf([System.MulticastDelegate]) | Should -BeTrue
+            $params[1].ParameterType.FullName | Should -Be "MyFunc_arg1_Delegate"
+
+            $deleg = $params[1].ParameterType.DeclaredMethods[0]
+            $deleg.Name | Should -Be "Invoke"
+            $deleg.ReturnType | Should -Be ([void])
+            $deleg.ReturnTypeCustomAttributes.CustomAttributes.Count | Should -Be 0
+            $delegParams = $deleg.GetParameters()
+            $delegParams.Count | Should -Be 0
+
+            $params[2].Name | Should -Be arg2
+            $params[2].ParameterType.IsSubclassOf([System.MulticastDelegate]) | Should -BeTrue
+            $params[2].ParameterType.FullName | Should -Be "MyFunc_arg2_Delegate"
+
+            $deleg = $params[2].ParameterType.DeclaredMethods[0]
+            $deleg.Name | Should -Be "Invoke"
+            $deleg.ReturnType | Should -Be ([bool])
+            $deleg.ReturnTypeCustomAttributes.CustomAttributes.Count | Should -Be 1
+            $deleg.ReturnTypeCustomAttributes.CustomAttributes[0].AttributeType | Should -Be ([System.Runtime.InteropServices.MarshalAsAttribute])
+            $deleg.ReturnTypeCustomAttributes.CustomAttributes[0].ConstructorArguments.Count | Should -Be 1
+            $deleg.ReturnTypeCustomAttributes.CustomAttributes[0].ConstructorArguments[0].ArgumentType | Should -Be ([System.Runtime.InteropServices.UnmanagedType])
+            $deleg.ReturnTypeCustomAttributes.CustomAttributes[0].ConstructorArguments[0].Value | Should -Be ([System.Runtime.InteropServices.UnmanagedType]::U1)
+
+            $delegParams = $deleg.GetParameters()
+            $delegParams.Count | Should -Be 1
+            $delegParams[0].Name | Should -Be "Test"
+            $delegParams[0].ParameterType | Should -Be ([IntPtr])
+
+            $params[3].Name | Should -Be arg3
+            $params[3].ParameterType.IsSubclassOf([System.MulticastDelegate]) | Should -BeTrue
+            $params[3].ParameterType.FullName | Should -Be "MyFunc_arg3_Delegate"
+
+            $deleg = $params[3].ParameterType.DeclaredMethods[0]
+            $deleg.Name | Should -Be "Invoke"
+            $deleg.ReturnType | Should -Be ([IntPtr])
+            $deleg.ReturnTypeCustomAttributes.CustomAttributes.Count | Should -Be 0
+            $delegParams = $deleg.GetParameters()
+            $delegParams.Count | Should -Be 2
+            $delegParams[0].Name | Should -Be Param1
+            $delegParams[0].ParameterType | Should -Be ([String])
+            $delegParams[0].CustomAttributes.Count | Should -Be 1
+            $delegParams[0].CustomAttributes[0].AttributeType | Should -Be ([System.Runtime.InteropServices.MarshalAsAttribute])
+            $delegParams[0].CustomAttributes[0].ConstructorArguments.Count | Should -Be 1
+            $delegParams[0].CustomAttributes[0].ConstructorArguments[0].ArgumentType | Should -Be ([System.Runtime.InteropServices.UnmanagedType])
+            $delegParams[0].CustomAttributes[0].ConstructorArguments[0].Value | Should -Be ([System.Runtime.InteropServices.UnmanagedType]::LPWStr)
+            $delegParams[1].Name | Should -Be Param2
+            $delegParams[1].ParameterType | Should -Be ([IntPtr])
+        }
     }
 
     Context "Windows APIs" -Skip:(-not $IsWindows) {
@@ -963,6 +1045,74 @@ Describe "New-CtypesLib" {
                 $kernel32.Returns([void]).CloseHandle($pi.Process)
                 $kernel32.CloseHandle($pi.Thread)
             }
+        }
+
+        It "Uses delegate argument" {
+            $crypt = New-CtypesLib Crypt32.dll
+
+            $stores = [System.Collections.Generic.List[string]]::new()
+
+            $storeHandle = [System.Runtime.InteropServices.GCHandle]::Alloc($stores)
+            $res = $crypt.Returns([bool]).SetLastError().CertEnumSystemStoreLocation(
+                0,
+                [System.Runtime.InteropServices.GCHandle]::ToIntPtr($storeHandle),
+                {
+                    [OutputType([bool])]
+                    param (
+                        [System.Runtime.InteropServices.MarshalAs([System.Runtime.InteropServices.UnmanagedType]::LPWStr)]
+                        [string]$StoreLocation,
+                        [int]$Flags,
+                        [IntPtr]$Reserved,
+                        [IntPtr]$Arg
+                    )
+
+                    $myListPtr = [System.Runtime.InteropServices.GCHandle]::FromIntPtr($Arg)
+                    $myList = [System.Collections.Generic.List[String]]($myListPtr.Target)
+
+                    $myList.Add($StoreLocation)
+
+                    return $true
+            })
+            $storeHandle.Free()
+
+            if (-not $res) {
+                throw [System.ComponentModel.Win32Exception]$crypt.LastError
+            }
+
+            $stores.Count | Should -BeGreaterThan 0
+        }
+
+        It "Uses predefined delegate argument" {
+            $crypt = New-CtypesLib Crypt32.dll
+
+            $crypt.Returns([bool]).SetLastError().CertEnumSystemStoreLocation = [Ordered]@{
+                Flags = [int]
+                Arg = [IntPtr]
+                Callback = {
+                    [OutputType([bool])]
+                    param (
+                        [System.Runtime.InteropServices.MarshalAs([System.Runtime.InteropServices.UnmanagedType]::LPWStr)]
+                        [string]$StoreLocation,
+                        [int]$Flags,
+                        [IntPtr]$Reserved,
+                        [IntPtr]$Arg
+                    )
+
+                    # Any code here will be ignored, this is only to dynamically create the delegate.
+                }
+            }
+
+            $stores = [System.Collections.Generic.List[string]]@()
+            $res = $crypt.CertEnumSystemStoreLocation(0, $null, {
+                $stores.Add($args[0])
+
+                $true
+            })
+            if (-not $res) {
+                throw [System.ComponentModel.Win32Exception]$crypt.LastError
+            }
+
+            $stores.Count | Should -BeGreaterThan 0
         }
     }
 
