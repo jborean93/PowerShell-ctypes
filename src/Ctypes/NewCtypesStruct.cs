@@ -126,7 +126,7 @@ public sealed class CtypesStructCommand : PSCmdlet
             }
 
             Type fieldType = info.Type;
-#if CORE
+#if NET6_0_OR_GREATER
             // Enums in pwsh are defined with RunAndCollect and cannot be used
             // in an assembly that is also not collectible. Copy across the
             // enum to the current assembly.
@@ -241,7 +241,7 @@ public sealed class CtypesStructCommand : PSCmdlet
         );
     }
 
-#if CORE
+#if NET6_0_OR_GREATER
     private static Type CopyEnumToAssembly(Type enumToCopy, ModuleBuilder mb)
     {
         Type underlyingType = Enum.GetUnderlyingType(enumToCopy);

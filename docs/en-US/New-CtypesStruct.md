@@ -14,7 +14,7 @@ Dynamically define a new struct type in PowerShell.
 
 ```
 New-CtypesStruct [-Name] <String> [-Body] <ScriptBlock> [-LayoutKind <LayoutKind>] [-CharSet <CharSet>]
- [-Pack <Int32>] [<CommonParameters>]
+ [-Pack <Int32>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -150,6 +150,21 @@ Set the `Pack` on the struct, this corresponds to the `[StructLayout(..., Pack =
 Type: Int32
 Parameter Sets: (All)
 Aliases:
+
+Required: False
+Position: Named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ProgressAction
+New common parameter introduced in PowerShell 7.4.
+
+```yaml
+Type: ActionPreference
+Parameter Sets: (All)
+Aliases: proga
 
 Required: False
 Position: Named
