@@ -188,6 +188,7 @@ task PesterTests {
     $watchFolder = [Path]::Combine($Manifest.ReleasePath, 'bin', $Manifest.TestFramework)
     $unitCoveragePath = [Path]::Combine($Manifest.TestResultsPath, "UnitCoverage.json")
     $coveragePath = [Path]::Combine($Manifest.TestResultsPath, "Coverage.xml")
+    $sourceMappingFile = [Path]::Combine($Manifest.TestResultsPath, "CoverageSourceMapping.txt")
 
     $arguments = @(
         $watchFolder
@@ -198,6 +199,10 @@ task PesterTests {
         '--verbosity', 'minimal'
         if (Test-Path -LiteralPath $unitCoveragePath) {
             '--merge-with', $unitCoveragePath
+        }
+        if ($env:GITHUB_ACTIONS -eq 'true') {
+            Set-Content -LiteralPath $sourceMappingFile "|$($Manifest.RepositoryPath)$([Path]::DirectorySeparatorChar)=/_/"
+            '--source-mapping-file', $sourceMappingFile
         }
     )
     $origEnv = $env:PSModulePath
