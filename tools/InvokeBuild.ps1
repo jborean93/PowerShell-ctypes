@@ -202,6 +202,7 @@ task PesterTests {
         }
         if ($env:GITHUB_ACTIONS -eq 'true') {
             Set-Content -LiteralPath $sourceMappingFile "|$($Manifest.RepositoryPath)$([Path]::DirectorySeparatorChar)=/_/"
+            Write-Host "Source mapping file created at '$sourceMappingFile'" -ForegroundColor Cyan
             '--source-mapping-file', $sourceMappingFile
         }
     )
