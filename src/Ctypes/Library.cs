@@ -1,5 +1,6 @@
 using System;
 using System.Dynamic;
+using System.IO;
 using System.Linq.Expressions;
 using System.Management.Automation;
 using System.Reflection.Emit;
@@ -27,7 +28,7 @@ public sealed class Library : IDynamicMetaObjectProvider
 
     public Library(string dllName)
     {
-        string assemblyName = $"Ctypes.PInvoke.{dllName}";
+        string assemblyName = $"Ctypes.PInvoke.{Path.GetFileNameWithoutExtension(dllName)}";
 
         // Dotnet Framework cannot call PInvoke methods in a collectable
         // assembly so use Run there.
