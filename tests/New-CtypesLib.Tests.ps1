@@ -36,6 +36,19 @@ Describe "New-CtypesLib" {
             $actual.LastError | Should -Be 0
         }
 
+        It "Creates lib object with path" {
+            $path = if ($PSVersionTable.PSVersion -lt '6.0' -or $IsWindows) {
+                'C:\Windows\System32\test.dll'
+            }
+            else {
+                '/usr/test/bin/libc.so'
+            }
+            $actual = New-CtypesLib $path
+            $actual | Should -BeOfType ([Ctypes.Library])
+            $actual.DllName | Should -Be $path
+            $actual.LastError | Should -Be 0
+        }
+
         It "Defines API with empty array" {
             $lib = New-CtypesLib MyLib
             $lib.MyFunc = @()
@@ -890,7 +903,16 @@ Describe "New-CtypesLib" {
             $res | Should -BeOfType ([IntPtr])
             $res | Should -Be ([IntPtr]-1)
 
-            $lib | Get-Member -name GetCurrentProcess | Should -Not -BeNullOrEmpty
+            $lib | Get-Member -Name GetCurrentProcess | Should -Not -BeNullOrEmpty
+        }
+
+        It "Loads lib using full path" {
+            $lib = New-CtypesLib "$env:SystemRoot\System32\Kernel32.dll"
+            $res = $lib.Returns([IntPtr]).GetCurrentProcess()
+            $res | Should -BeOfType ([IntPtr])
+            $res | Should -Be ([IntPtr]-1)
+
+            $lib | Get-Member -Name GetCurrentProcess | Should -Not -BeNullOrEmpty
         }
 
         It "Uses generics to specify return type" -Skip:($PSVersionTable.PSVersion -lt '7.3') {
@@ -928,7 +950,7 @@ Describe "New-CtypesLib" {
             $lib = New-CtypesLib Kernel32.dll
 
             $procHandle = $lib.Returns([IntPtr]).SetLastError().OpenProcess(
-                0x400,  # PROCESS_QUERY_INFORMATION
+                0x400, # PROCESS_QUERY_INFORMATION
                 $false,
                 1)
             $procHandle | Should -Be ([IntPtr]::Zero)
@@ -1072,7 +1094,7 @@ Describe "New-CtypesLib" {
                     $myList.Add($StoreLocation)
 
                     return $true
-            })
+                })
             $storeHandle.Free()
 
             if (-not $res) {
@@ -1104,10 +1126,10 @@ Describe "New-CtypesLib" {
 
             $stores = [System.Collections.Generic.List[string]]@()
             $res = $crypt.CertEnumSystemStoreLocation(0, $null, {
-                $stores.Add($args[0])
+                    $stores.Add($args[0])
 
-                $true
-            })
+                    $true
+                })
             if (-not $res) {
                 throw [System.ComponentModel.Win32Exception]$crypt.LastError
             }
