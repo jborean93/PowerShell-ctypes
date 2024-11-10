@@ -1,5 +1,7 @@
 # Changelog for Ctypes
 
+## v0.3.0 - TBD
+
 ## v0.2.1 - 2024-11-11
 
 + Fix specifying dll through full path rather than just the filename
