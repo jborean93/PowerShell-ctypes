@@ -2,6 +2,9 @@
 
 ## v0.3.0 - TBD
 
++ Added `MarshalAs` support for specifying the full `MarshalAsAttribute` value for more complex scenarios
++ Added `LastErrorMessage`, `ThrowLastErrorException()` and `GetLastErrorRecord()` as a convenient ways for getting the last native error details
+
 ## v0.2.1 - 2024-11-11
 
 + Fix specifying dll through full path rather than just the filename

@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Dynamic;
 using System.IO;
 using System.Linq.Expressions;
@@ -23,6 +24,7 @@ public sealed class Library : IDynamicMetaObjectProvider
     internal bool? _setLastError = null;
 
     public int LastError { get; internal set; } = 0;
+    public string LastErrorMessage => new Win32Exception(LastError).Message;
 
     public string DllName { get; }
 
@@ -85,18 +87,41 @@ public sealed class Library : IDynamicMetaObjectProvider
 
     public PSObject? MarshalAs(object? value, UnmanagedType attr)
     {
+        MarshalAsAttribute marshalAs = new(attr);
+        return MarshalAs(value, marshalAs);
+    }
+
+    public PSObject? MarshalAs(object? value, MarshalAsAttribute attr)
+    {
         if (value == null)
         {
             return null;
         }
 
-        MarshalAsAttribute marshalAs = new(attr);
-
         PSObject valueObj = PSObject.AsPSObject(value);
-        PSNoteProperty marshalAsInfo = new(MARSHAL_AS_NOTE_NAME, marshalAs);
+        PSNoteProperty marshalAsInfo = new(MARSHAL_AS_NOTE_NAME, attr);
         valueObj.Properties.Add(marshalAsInfo);
 
         return valueObj;
+    }
+
+    public ErrorRecord GetLastErrorRecord(
+        string errorId)
+    {
+        ErrorRecord err = new(
+            new Win32Exception(LastError),
+            errorId,
+            ErrorCategory.InvalidResult,
+            LastError);
+        err.ErrorDetails = new(string.Format(
+            "{0} (0x{1:X8})", err.Exception.Message, LastError));
+
+        return err;
+    }
+
+    public void ThrowLastErrorException()
+    {
+        throw new Win32Exception(LastError);
     }
 
     public DynamicMetaObject GetMetaObject(Expression parameter)

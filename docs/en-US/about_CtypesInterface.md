@@ -213,6 +213,12 @@ The character set will use `[System.Runtime.InteropServices.CharSet]::Unicode`, 
 On a failure it retrieves the error code through the `LastError` property on the object.
 Do not use `[System.Runtime.InteropServices.Marshal]::GetLastWin32Error()` as that value could have been mutated by the PowerShell engine between statements. The `LastError` property is retrieved using that code but at a stage where PowerShell may not have overidden it.
 
+It is also possible to use the following properties/methods to get the last error information:
+
++ `LastErrorMessage` - A property that returns the last error message
++ `GetLastErrorRecord(string errorId)` - Returns a PowerShell `ErrorRecord` which can be written to the pipeline with the `System.ComponentModel.Win32Exception` exception attached
++ `ThrowLastErrorException()` - Throws the `System.ComponentModel.Win32Exception` exception for the `LastError` value
+
 # MarshalAs Attributes
 Another attribute used in PInvoke definitions is the ability to mark specific arguments with a [MarshalAsAttribute](https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.marshalasattribute?view=net-7.0).
 This attribute can be used to control how strings are marshaled as, or define array marshaling behaviour.
@@ -256,6 +262,21 @@ $lib.SetLastError().Returns([IntPtr]).CreateFileW(
     [System.IO.FileMode]::Create,
     0,
     [IntPtr]::Zero)
+```
+
+For more complex `MarshalAs` examples that are not covered by the `UnamangedType` annotation, the whole attribute value can be specified instead:
+
+```powershell
+$policies = [Guid[]]@(...)
+$subcategoryMarshaling = [System.Runtime.InteropServices.MarshalAsAttribute]::new(
+    [System.Runtime.InteropServices.UnmanagedType]::LPArray)
+$subcategoryMarshaling.SizeParamIndex = 1
+
+$auditPolicy = [IntPtr]::Zero
+$lib.SetLastError().Returns([bool]).AuditQuerySystemPolicy(
+    $lib.MarshalAs($policies, $subcategoryMarshaling),
+    $policies.Count,
+    [ref]$auditPolicy)
 ```
 
 # Delegate Functions
