@@ -1,6 +1,6 @@
 # Changelog for Ctypes
 
-## v0.3.0 - TBD
+## v0.3.0 - 2025-06-12
 
 + Set minimum PowerShell 7 version as 7.4
 + Added `MarshalAs` support for specifying the full `MarshalAsAttribute` value for more complex scenarios
