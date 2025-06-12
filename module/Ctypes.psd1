@@ -12,7 +12,7 @@
 
     # Script module or binary module file associated with this manifest.
     RootModule = if ($PSEdition -eq 'Core') {
-        'bin/net6.0/Ctypes.dll'
+        'bin/net8.0/Ctypes.dll'
     }
     else {
         'bin/net472/Ctypes.dll'

@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!--System.Reflection.Emit does not work with netstandard2.0-->
-    <TargetFrameworks>net472;net6.0</TargetFrameworks>
+    <TargetFrameworks>net472;net8.0</TargetFrameworks>
     <LangVersion>10.0</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
@@ -22,12 +22,12 @@
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-555c-2p6r-68mm" />
   </ItemGroup>
 
-  <ItemGroup Condition=" '$(TargetFramework)' != 'net6.0' ">
+  <ItemGroup Condition=" '$(TargetFramework)' != 'net8.0' ">
     <PackageReference Include="PowerShellStandard.Library" Version="5.1.0" PrivateAssets="all" />
   </ItemGroup>
 
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net6.0' ">
-    <PackageReference Include="System.Management.Automation" Version="7.2.0" PrivateAssets="all" />
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net8.0' ">
+    <PackageReference Include="System.Management.Automation" Version="7.4.0" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
