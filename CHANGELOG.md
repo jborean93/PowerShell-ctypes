@@ -2,6 +2,7 @@
 
 ## v0.3.0 - TBD
 
++ Set minimum PowerShell 7 version as 7.4
 + Added `MarshalAs` support for specifying the full `MarshalAsAttribute` value for more complex scenarios
 + Added `LastErrorMessage`, `ThrowLastErrorException()` and `GetLastErrorRecord()` as a convenient ways for getting the last native error details
 

@@ -36,7 +36,7 @@ public sealed class Library : IDynamicMetaObjectProvider
         // assembly so use Run there.
         _assembly = AssemblyBuilder.DefineDynamicAssembly(
             new(assemblyName),
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
             AssemblyBuilderAccess.RunAndCollect);
 #else
             AssemblyBuilderAccess.Run);

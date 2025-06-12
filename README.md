@@ -167,7 +167,7 @@ _Note: This can't return a string directly as dotnet will try and free the memor
 
 These cmdlets have the following requirements
 
-* PowerShell v5.1 or newer
+* PowerShell v5.1, or 7.4+
 
 ## Installing
 
@@ -177,9 +177,11 @@ You can install this module by running;
 
 ```powershell
 # Install for only the current user
+Install-PSResource -Name Ctypes -Scope CurrentUser
 Install-Module -Name Ctypes -Scope CurrentUser
 
 # Install for all users
+Install-PSResource -Name Ctypes -Scope AllUsers
 Install-Module -Name Ctypes -Scope AllUsers
 ```
 
