@@ -422,7 +422,8 @@ Describe "New-CtypesLib" {
         It "Defines API with MarshalAs parameter with ordered dict" {
             $lib = New-CtypesLib MyLib
             $lib.MyFunc = [Ordered]@{
-                MyArg1 = $lib.MarshalAs([string], 'LPWStr')
+                MyArg1 = $lib.MarshalAs([string], [System.Runtime.InteropServices.MarshalAsAttribute]::new(
+                        [System.Runtime.InteropServices.UnmanagedType]::LPWStr))
             }
 
             $actual = $lib.MyFunc
@@ -973,6 +974,37 @@ Describe "New-CtypesLib" {
             }
         }
 
+        It "Throws last error code on failure" {
+            $lib = New-CtypesLib Kernel32.dll
+
+            $procHandle = $lib.Returns([IntPtr]).SetLastError().OpenProcess(
+                0x400, # PROCESS_QUERY_INFORMATION
+                $false,
+                1)
+            $procHandle | Should -Be ([IntPtr]::Zero)
+
+            {
+                $lib.ThrowLastErrorException()
+            } | Should -Throw "*$($lib.LastErrorMessage)*"
+        }
+        It "Creates ErrorRecord on failure" {
+            $lib = New-CtypesLib Kernel32.dll
+
+            $procHandle = $lib.Returns([IntPtr]).SetLastError().OpenProcess(
+                0x400, # PROCESS_QUERY_INFORMATION
+                $false,
+                1)
+            $procHandle | Should -Be ([IntPtr]::Zero)
+
+            $actual = $lib.GetLastErrorRecord("MyErrorId")
+            $actual | Should -BeOfType ([System.Management.Automation.ErrorRecord])
+            $actual.Exception | Should -BeOfType ([System.ComponentModel.Win32Exception])
+            $actual.FullyQualifiedErrorId | Should -Be "MyErrorId"
+            $actual.CategoryInfo.Category | Should -Be InvalidResult
+            $actual.ErrorDetails.Message | Should -Be "$($lib.LastErrorMessage) (0x00000057)"
+            $actual.TargetObject | Should -Be 87
+        }
+
         It "Uses complex argument" {
             ctypes_struct SECURITY_ATTRIBUTES {
                 [int]$Length
@@ -1248,6 +1280,41 @@ Describe "New-CtypesLib" {
             )
             $fd | Should -Be -1
             $lib.LastError | Should -Be 2
+        }
+
+        It "Throws last error code on failure" {
+            $lib = New-CtypesLib libc
+
+            $filePath = "/tmp/missing folder/pwsh-ctypes-$([Guid]::NewGuid())"
+            $fd = $lib.SetLastError().open(
+                $lib.MarshalAs($filePath, 'LPUTF8Str'),
+                0x42,
+                448  # S_IRWXU
+            )
+            $fd | Should -Be -1
+            {
+                $lib.ThrowLastErrorException()
+            } | Should -Throw
+        }
+
+        It "Creates ErrorRecord on failure" {
+            $lib = New-CtypesLib libc
+
+            $filePath = "/tmp/missing folder/pwsh-ctypes-$([Guid]::NewGuid())"
+            $fd = $lib.SetLastError().open(
+                $lib.MarshalAs($filePath, 'LPUTF8Str'),
+                0x42,
+                448  # S_IRWXU
+            )
+            $fd | Should -Be -1
+
+            $actual = $lib.GetLastErrorRecord("MyErrorId")
+            $actual | Should -BeOfType ([System.Management.Automation.ErrorRecord])
+            $actual.Exception | Should -BeOfType ([System.ComponentModel.Win32Exception])
+            $actual.FullyQualifiedErrorId | Should -Be "MyErrorId"
+            $actual.CategoryInfo.Category | Should -Be InvalidResult
+            $actual.ErrorDetails.Message | Should -Be "$($lib.LastErrorMessage) (0x00000002)"
+            $actual.TargetObject | Should -Be 2
         }
     }
 }
